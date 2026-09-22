@@ -38,9 +38,17 @@ SYSTEM = """\
 1. Найди подходящие позиции в каталоге своей компании инструментом {tool}. Запрос — ключевые слова: города, названия, цвет, размер.
 2. Сделай ставку: выбери позиции (item_id из результатов поиска) и количество каждой в единицах из поля unit
    (например, 6 ночей; 1 билет туда и 1 обратно на каждого пассажира; 2 поездки трансфера; дни × путешественники для страховки).
+   Количество должно покрывать подзадачу целиком: все ночи проживания, всех путешественников, оба направления,
+   если нужна дорога туда и обратно. Ставка на часть подзадачи — ошибка.
+   Бери по одной позиции на каждую нужную услугу, без лишнего. Если у позиции есть sizes_in_stock, укажи размер —
+   он должен быть в наличии, иначе выбери другую позицию или откажись.
 Цену не считай и не пиши — она рассчитывается автоматически по каталогу.
 Если в каталоге нет подходящего (нет направления, отеля, нужного размера) — откажись: participate=false.
-confidence — насколько твоё предложение соответствует подзадаче и критериям, от 0 до 1."""
+Обязательно заполни eta (срок выполнения) и confidence — насколько предложение соответствует подзадаче и критериям, от 0 до 1."""
+
+
+# Уверенность ставки, если модель её не указала: ноль несправедливо топил бы ставку
+NEUTRAL_CONFIDENCE = 0.5
 
 
 class SearchArgs(BaseModel):
@@ -52,6 +60,7 @@ class BidLine(BaseModel):
 
     item_id: str = Field(description="id позиции из результатов поиска")
     quantity: int = Field(description="Количество в единицах позиции (поле unit)")
+    size: str | None = Field(None, description="Размер, если у позиции есть sizes_in_stock, иначе null")
 
 
 class BidDraft(BaseModel):
@@ -59,9 +68,9 @@ class BidDraft(BaseModel):
 
     participate: bool = Field(description="false — отказаться от участия, если подходящих позиций нет")
     items: list[BidLine] = Field(default_factory=list, description="Выбранные позиции каталога и количество")
-    eta: str = Field("", description="Срок выполнения, например «подтверждение брони за 2 часа»")
-    confidence: float = Field(0.0, description="Уверенность от 0 до 1, что предложение соответствует подзадаче")
-    offer: str = Field("", description="Что конкретно предлагается, 1–3 предложения, без цены")
+    eta: str | None = Field(None, description="Срок выполнения, например «подтверждение брони за 2 часа»")
+    confidence: float | None = Field(None, description="Уверенность от 0 до 1, что предложение соответствует подзадаче")
+    offer: str | None = Field(None, description="Что конкретно предлагается, 1–3 предложения, без цены")
 
 
 @dataclass
@@ -155,10 +164,15 @@ class ExecutorAgent:
             messages.append(HumanMessage(f"Результаты поиска по каталогу ({self.tool_name}):\n{tool.invoke({'query': task.title})}"
                                          "\nТеперь сделай ставку."))
 
-        draft = await self.llm.with_structured_output(BidDraft).ainvoke(messages)
-        if isinstance(draft, dict):
-            draft = BidDraft.model_validate(draft)
+        structured = self.llm.with_structured_output(BidDraft)
+        draft = _as_draft(await structured.ainvoke(messages))
         result = self._price(draft, queries)
+        if result.status == "declined" and result.details.get("rejected"):
+            # Модель хотела участвовать, но выбрала неподходящее — одна попытка исправиться
+            messages.append(HumanMessage("Ставка не принята: " + "; ".join(result.details["rejected"])
+                                         + ". Выбери другие позиции из результатов поиска или откажись."))
+            draft = _as_draft(await structured.ainvoke(messages))
+            result = self._price(draft, queries)
         log.info("Агент %s, %s: %s %s за %.1f с", self.id, task.key, result.status, result.price,
                  time.monotonic() - start)
         return result
@@ -167,21 +181,69 @@ class ExecutorAgent:
         if draft is None:
             return BidResult(self.id, "error", offer="модель не вернула ставку")
         if not draft.participate:
-            return BidResult(self.id, "declined", offer=draft.offer.strip() or "нет подходящих позиций")
-        lines = []
+            return BidResult(self.id, "declined", offer=(draft.offer or "").strip() or "нет подходящих позиций")
+        lines, rejected = [], []
         for line in draft.items:
             item = self.by_id.get(line.item_id)
-            if item is None or line.quantity < 1:
-                log.debug("Агент %s: отброшена позиция %s × %s", self.id, line.item_id, line.quantity)
+            problem = _line_problem(item, line)
+            if problem:
+                rejected.append(problem)
+                log.debug("Агент %s: отброшено — %s", self.id, problem)
                 continue
-            lines.append({"id": item["id"], "title": item["title"], "quantity": line.quantity,
-                          "unit": item.get("unit", ""), "unit_price": self.unit_price(item)})
+            entry = {"id": item["id"], "title": item["title"], "quantity": line.quantity,
+                     "unit": item.get("unit", ""), "unit_price": self.unit_price(item)}
+            if "sizes_in_stock" in item:
+                entry["size"] = line.size
+            lines.append(entry)
+        route = _route_problem([self.by_id[line["id"]] for line in lines])
+        if route:
+            rejected.append(route)
+            lines = []
         if not lines:
-            return BidResult(self.id, "declined", offer="не выбрано ни одной позиции из каталога")
+            reason = "; ".join(rejected) or "не выбрано ни одной позиции из каталога"
+            return BidResult(self.id, "declined", offer=f"ставка отклонена: {reason}"[:500],
+                             details={"rejected": rejected, "queries": queries})
         total = max(sum(line["unit_price"] * line["quantity"] for line in lines), self.min_price)
-        offer = draft.offer.strip() or "; ".join(f"{line['title']} × {line['quantity']}" for line in lines)
+        offer = (draft.offer or "").strip() or "; ".join(
+            f"{line['title']}{', размер ' + line['size'] if line.get('size') else ''} × {line['quantity']}"
+            for line in lines)
+        if draft.confidence is None:
+            log.info("Агент %s не указал уверенность — принимается нейтральная %.1f", self.id, NEUTRAL_CONFIDENCE)
+        confidence = NEUTRAL_CONFIDENCE if draft.confidence is None else min(max(draft.confidence, 0.0), 1.0)
         return BidResult(
-            self.id, "submitted", price=to_minor(total), eta=draft.eta.strip()[:100],
-            confidence=min(max(draft.confidence, 0.0), 1.0), offer=offer,
-            details={"items": lines, "queries": queries},
+            self.id, "submitted", price=to_minor(total), eta=(draft.eta or "").strip()[:100],
+            confidence=confidence, offer=offer,
+            details={"items": lines, "queries": queries, **({"rejected": rejected} if rejected else {})},
         )
+
+
+def _as_draft(value) -> BidDraft | None:
+    return BidDraft.model_validate(value) if isinstance(value, dict) else value
+
+
+def _line_problem(item: dict | None, line: BidLine) -> str | None:
+    """Почему позицию ставки нельзя принять, или None, если можно."""
+    if item is None:
+        return f"позиции {line.item_id} нет в каталоге"
+    if line.quantity < 1:
+        return f"{item['title']}: количество {line.quantity}"
+    if not _size_ok(item, line.size):
+        return f"{item['title']}: размера {line.size or '(не указан)'} нет в наличии"
+    return None
+
+
+def _route_problem(items: list[dict]) -> str | None:
+    """Перелёты в ставке должны стыковаться: следующий сегмент вылетает оттуда, куда прилетел предыдущий."""
+    legs = [i for i in items if "from_city" in i and "to_city" in i]
+    for prev, nxt in zip(legs, legs[1:]):
+        if prev["to_city"] != nxt["from_city"]:
+            return (f"маршрут не стыкуется: {prev['title']} прилетает в {prev['to_city']}, "
+                    f"а {nxt['title']} вылетает из {nxt['from_city']}")
+    return None
+
+
+def _size_ok(item: dict, size: str | None) -> bool:
+    """Товар с размерной сеткой принимается, только если выбранный размер есть в наличии."""
+    if "sizes_in_stock" not in item or not item["sizes_in_stock"]:
+        return True
+    return size is not None and size.strip() in {str(x) for x in item["sizes_in_stock"]}

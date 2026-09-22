@@ -75,7 +75,7 @@ async def _collect(jobs: list[_Job], timeout: float, parallel: int,
     async def one(job: _Job) -> None:
         async with semaphore:
             try:
-                result = await asyncio.wait_for(job.agent.bid(job.brief), timeout)
+                result = await asyncio.wait_for(_bid_with_retry(job), timeout)
             except asyncio.TimeoutError:
                 log.warning("Агент %s не уложился в %s с (%s)", job.agent.id, timeout, job.brief.key)
                 result = BidResult(job.agent.id, "timeout", offer=f"нет ответа за {timeout:g} с")
@@ -88,6 +88,24 @@ async def _collect(jobs: list[_Job], timeout: float, parallel: int,
 
     await asyncio.gather(*(one(job) for job in jobs))
     return received
+
+
+RETRY_DELAYS = (1.0, 2.0, 4.0)
+
+
+async def _bid_with_retry(job: _Job) -> BidResult:
+    """Ставка с повтором при превышении лимита запросов (HTTP 429) и невалидном ответе модели (NFR-2).
+    Всё вместе ограничено таймаутом ставки."""
+    for delay in (*RETRY_DELAYS, None):
+        try:
+            return await job.agent.bid(job.brief)
+        except Exception as exc:
+            retriable = "RateLimit" in type(exc).__name__ or "429" in str(exc) or isinstance(exc, ValueError)
+            if delay is None or not retriable:
+                raise
+            log.info("Агент %s: %s, повтор через %s с", job.agent.id, type(exc).__name__, delay)
+            await asyncio.sleep(delay)
+    raise AssertionError("недостижимо")
 
 
 def _settle(db: Session, settings: Settings, task: Task, results: list[BidResult], stamps: list,

@@ -61,6 +61,9 @@ class _Structured:
         assert self.schema is BidDraft, self.schema
         self.llm.bid_calls.append(messages)
         rule = self.llm.rule(messages)
+        if "bids" in rule:  # последовательность ставок: первая попытка, исправление
+            attempt = sum(1 for m in messages if "Ставка не принята" in str(m.content))
+            return BidDraft.model_validate(rule["bids"][attempt])
         if "bid" in rule:
             return BidDraft.model_validate(rule["bid"])
         found = []
@@ -71,7 +74,9 @@ class _Structured:
                 found = json.loads(m.content[m.content.index("["):m.content.rindex("]") + 1])
         if not found:
             return BidDraft(participate=False, offer="нет подходящих позиций")
-        return BidDraft(participate=True, items=[{"item_id": found[0]["id"], "quantity": 1}],
+        sizes = found[0].get("sizes_in_stock") or [None]
+        size = str(sizes[0]) if sizes[0] is not None else None
+        return BidDraft(participate=True, items=[{"item_id": found[0]["id"], "quantity": 1, "size": size}],
                         eta="1 день", confidence=0.8, offer=found[0]["title"])
 
     def invoke(self, messages):

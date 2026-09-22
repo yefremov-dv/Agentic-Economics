@@ -18,6 +18,7 @@ from tests.fakes import TURKEY_PLAN, FakeLLM, analysis, task
 ROOT = Path(__file__).resolve().parent.parent
 TODAY = date(2026, 9, 22)
 W = AuctionWeights(price=0.5, confidence=0.3, rating=0.2)
+NO_ETA = {"eta": "", "confidence": 0.5}
 
 
 # ------------------------------------------------------------ выбор победителя (FR-12, FR-12a)
@@ -115,16 +116,16 @@ def test_bid_price_is_computed_from_catalog(db):
 
 def test_min_price_applies(db):
     llm = FakeLLM(agents={"Кара": {"bid": {"participate": True, "items": [{"item_id": "ka-belek-sedan", "quantity": 1}],
-                                            "confidence": 0.9}}})
+                                            **NO_ETA}}})
     agent = executor(db, "transfers-kara", llm)
     agent.min_price = 50_000
     assert asyncio.run(agent.bid(BRIEF)).price == 50_000_00
 
 
 @pytest.mark.parametrize("draft,status", [
-    ({"participate": False, "offer": "Нет такого отеля"}, "declined"),
-    ({"participate": True, "items": [{"item_id": "выдуманный", "quantity": 1}]}, "declined"),
-    ({"participate": True, "items": [{"item_id": "mrb-deluxe-bo", "quantity": 0}]}, "declined"),
+    ({"participate": False, "offer": "Нет такого отеля", **NO_ETA}, "declined"),
+    ({"participate": True, "items": [{"item_id": "выдуманный", "quantity": 1}], **NO_ETA}, "declined"),
+    ({"participate": True, "items": [{"item_id": "mrb-deluxe-bo", "quantity": 0}], **NO_ETA}, "declined"),
 ])
 def test_invalid_or_declined_bids(db, draft, status):
     llm = FakeLLM(agents={"Босфор": {"bid": draft}})
@@ -133,7 +134,7 @@ def test_invalid_or_declined_bids(db, draft, status):
 
 def test_competitor_items_are_not_accepted(db):
     # Позиция из каталога другого провайдера не считается
-    llm = FakeLLM(agents={"Босфор": {"bid": {"participate": True, "items": [{"item_id": "mrb-deluxe-sr", "quantity": 6}]}}})
+    llm = FakeLLM(agents={"Босфор": {"bid": {"participate": True, "items": [{"item_id": "mrb-deluxe-sr", "quantity": 6}], **NO_ETA}}})
     assert asyncio.run(executor(db, "hotels-bosphorus", llm).bid(BRIEF)).status == "declined"
 
 
@@ -199,7 +200,7 @@ def test_timeout_and_error_do_not_break_auction(seeded, db):
 
 
 def test_task_without_bids(seeded, db):
-    decline = {"bid": {"participate": False, "offer": "нет"}}
+    decline = {"bid": {"participate": False, "offer": "нет", **NO_ETA}}
     llm = FakeLLM(analysis(), {"tasks": [task(1, "Кроссовки", "retail")]},
                   agents={"КроссМаркет": decline, "СпортЛайн": decline})
     orch, reply = plan_and_auction(seeded, db, llm)
@@ -247,3 +248,85 @@ def test_dependencies_are_passed_as_context(seeded, db):
     plan_and_auction(seeded, db, llm)
     transfer_prompts = [m for m in llm.bid_calls if "Трансфер" in m[1].content]
     assert transfer_prompts and "Связанные подзадачи" in transfer_prompts[0][1].content
+
+
+@pytest.mark.parametrize("size,status", [("42", "submitted"), ("39", "declined"), (None, "declined")])
+def test_size_must_be_in_stock(db, size, status):
+    # У Nike Revolution 7 в «СпортЛайне» нет 42-го размера, у Air Force 1 — есть
+    item = "sp-af1-pink" if status == "submitted" else "sp-revolution-pink"
+    if size is None:
+        item = "sp-af1-pink"
+    llm = FakeLLM(agents={"СпортЛайн": {"bid": {"participate": True, "items": [{"item_id": item, "quantity": 1, "size": size}],
+                                                **NO_ETA}}})
+    result = asyncio.run(executor(db, "retail-sportline", llm).bid(BRIEF))
+    assert result.status == status
+    if status == "declined":
+        assert "нет в наличии" in result.offer
+    if status == "submitted":
+        assert "размер 42" in result.offer or result.details["items"][0]["size"] == "42"
+
+
+def test_rate_limit_is_retried(seeded, db, monkeypatch):
+    monkeypatch.setattr("agentic_economics.auction.runner.RETRY_DELAYS", (0.01, 0.01))
+
+    class RateLimitError(Exception):
+        pass
+
+    calls = {"n": 0}
+    real = ExecutorAgent.bid
+
+    async def flaky(self, brief):
+        if self.id == "hotels-sunrise" and calls["n"] < 2:
+            calls["n"] += 1
+            raise RateLimitError("429")
+        return await real(self, brief)
+
+    monkeypatch.setattr(ExecutorAgent, "bid", flaky)
+    orch, _ = plan_and_auction(seeded, db, FakeLLM(analysis(), TURKEY_PLAN))
+    hotel = next(t for t in orch.tasks() if t.category == "hotels")
+    assert {b.agent_id: b.status for b in orch.bids(hotel)}["hotels-sunrise"] in ("winner", "lost")
+    assert calls["n"] == 2
+
+
+def test_missing_confidence_is_neutral(db):
+    llm = FakeLLM(agents={"Босфор": {"bid": {"participate": True, "items": [{"item_id": "mrb-deluxe-bo", "quantity": 6}]}}})
+    result = asyncio.run(executor(db, "hotels-bosphorus", llm).bid(BRIEF))
+    assert result.status == "submitted" and result.confidence == 0.5 and result.eta == ""
+
+
+def test_reset_demo_after_auction(seeded, db):
+    from agentic_economics.seed import reset_demo
+
+    plan_and_auction(seeded, db, FakeLLM(analysis(), TURKEY_PLAN))
+    db.close()
+    reset_demo(seeded)  # взаимные внешние ключи tasks ↔ bids не мешают пересозданию
+    from agentic_economics.storage.db import make_sessionmaker
+
+    with make_sessionmaker(seeded)() as fresh:
+        assert fresh.query(Bid).count() == 0 and fresh.query(Task).count() == 0
+
+
+def test_agent_gets_one_chance_to_fix_bid(db):
+    wrong = {"participate": True, "items": [{"item_id": "sp-revolution-pink", "quantity": 1, "size": "42"}], **NO_ETA}
+    right = {"participate": True, "items": [{"item_id": "sp-af1-pink", "quantity": 1, "size": "42"}], **NO_ETA}
+    llm = FakeLLM(agents={"СпортЛайн": {"bids": [wrong, right]}})
+    result = asyncio.run(executor(db, "retail-sportline", llm).bid(BRIEF))
+    assert result.status == "submitted"
+    assert result.details["items"][0]["id"] == "sp-af1-pink"
+    assert "размера 42 нет в наличии" in llm.bid_calls[-1][-1].content
+
+    llm = FakeLLM(agents={"СпортЛайн": {"bids": [wrong, wrong]}})
+    assert asyncio.run(executor(db, "retail-sportline", llm).bid(BRIEF)).status == "declined"
+
+
+def test_flight_legs_must_connect(db):
+    brief = TaskBrief(1, "task-1", "Авиабилеты Москва — Анталья и обратно", "flights", "1 взрослый", [])
+    broken = {"participate": True, "items": [{"item_id": "ta-7401", "quantity": 1}, {"item_id": "ta-7602", "quantity": 1}],
+              **NO_ETA}
+    fixed = {"participate": True, "items": [{"item_id": "ta-7401", "quantity": 1}, {"item_id": "ta-7402", "quantity": 1}],
+             **NO_ETA}
+    llm = FakeLLM(agents={"ТурбоАвиа": {"bids": [broken, fixed]}})
+    result = asyncio.run(executor(db, "flights-turboavia", llm).bid(brief))
+    assert result.status == "submitted"
+    assert [i["id"] for i in result.details["items"]] == ["ta-7401", "ta-7402"]
+    assert "не стыкуется" in llm.bid_calls[-1][-1].content

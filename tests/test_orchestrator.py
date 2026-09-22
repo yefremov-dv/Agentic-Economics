@@ -163,3 +163,23 @@ def test_messages_persist(seeded, db):
     orch, _ = start(seeded, db, analysis(ready=False, questions=["Город?"]))
     orch.handle(REQUEST)
     assert db.query(Message).filter(Message.session_id == orch.session.id).count() == 2
+
+
+@pytest.mark.parametrize("text,expected", [
+    ("бюджет 1 000 000 рублей", 1_000_000),
+    ("Бюджет — 300 тыс.", 300_000),
+    ("с бюджетом 1,5 млн", 1_500_000),
+    ("бюджет: 250000", 250_000),
+    ("без бюджета", None),
+    ("хочу в Турцию", None),
+])
+def test_budget_from_text(text, expected):
+    from agentic_economics.orchestrator.core import budget_from_text
+
+    assert budget_from_text(text) == expected
+
+
+def test_budget_fallback_when_model_misses_it(seeded, db):
+    orch, _ = start(seeded, db, analysis(budget=None, ready=False, questions=["Город?"]))
+    orch.handle(REQUEST)
+    assert orch.session.budget == 100_000_000

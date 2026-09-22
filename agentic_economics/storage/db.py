@@ -51,6 +51,12 @@ def make_sessionmaker(settings: Settings) -> sessionmaker:
 
 def reset_db(settings: Settings) -> sessionmaker:
     engine = make_engine(settings)
-    Base.metadata.drop_all(engine)
+    with engine.connect() as conn:
+        # tasks.winner_bid_id и bids.task_id ссылаются друг на друга — без отключения проверки
+        # внешних ключей SQLite не даст удалить заполненные таблицы
+        conn.exec_driver_sql("PRAGMA foreign_keys=OFF")
+        Base.metadata.drop_all(conn)
+        conn.commit()
+        conn.exec_driver_sql("PRAGMA foreign_keys=ON")
     Base.metadata.create_all(engine)
     return sessionmaker(engine, expire_on_commit=False)

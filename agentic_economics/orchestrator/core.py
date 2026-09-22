@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+import re
 import secrets
 import shutil
 from dataclasses import dataclass, field
@@ -134,8 +135,13 @@ class Orchestrator:
         except LLMFailure:
             return self._llm_error()
 
-        if analysis.budget_rub and analysis.budget_rub > 0:
-            self.session.budget = to_minor(analysis.budget_rub)
+        budget_rub = analysis.budget_rub
+        if not budget_rub or budget_rub <= 0:
+            # Модель не всегда заполняет поле бюджета — ищем его в словах клиента сами
+            budget_rub = next((b for m in reversed(self.messages()) if m.role == "user"
+                               for b in [budget_from_text(m.content)] if b), None)
+        if budget_rub and budget_rub > 0:
+            self.session.budget = to_minor(budget_rub)
         questions = [q.strip() for q in analysis.questions if q.strip()]
         if not analysis.ready and questions and rounds < limit:
             self._save("assistant", "\n".join(questions))
@@ -266,6 +272,24 @@ class Orchestrator:
 
     def _today(self) -> str:
         return f"{self.today:%d.%m.%Y}"
+
+
+BUDGET_RE = re.compile(
+    r"бюджет\w*\D{0,20}?(\d[\d\s\u00a0]*(?:[.,]\d+)?)\s*(млн|миллион\w*|тыс\w*|к\b|k\b)?", re.IGNORECASE)
+
+
+def budget_from_text(text: str) -> float | None:
+    """«бюджет 1 000 000 рублей», «бюджет — 300 тыс.», «бюджетом 1,5 млн» → сумма в рублях."""
+    m = BUDGET_RE.search(text)
+    if not m:
+        return None
+    number = float(re.sub(r"[\s\u00a0]", "", m.group(1)).replace(",", "."))
+    unit = (m.group(2) or "").lower()
+    if unit.startswith(("млн", "миллион")):
+        number *= 1_000_000
+    elif unit.startswith(("тыс", "к", "k")):
+        number *= 1_000
+    return number or None
 
 
 def plan_summary(tasks: list[Task], winner_of: Callable[[Task], Bid | None] = lambda t: None) -> str:
