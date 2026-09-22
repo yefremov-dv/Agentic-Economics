@@ -10,7 +10,7 @@
 |---|---|
 | 1. Каркас: конфиг, GigaChat, БД, seed, CLI | готов |
 | 2. Оркестратор: диалог и декомпозиция в `task-N.md` | готов |
-| 3. Аукцион | — |
+| 3. Аукцион: агенты-исполнители, ставки, победитель | готов |
 | 4. Экономика: эскроу, комиссия | — |
 | 5. Полный цикл | — |
 
@@ -44,7 +44,9 @@ python -m agentic_economics chat --user ivanov       # чат клиента
 
 В чате опишите задачу свободным текстом. Оркестратор задаст уточняющие вопросы (не более `orchestrator.max_clarification_rounds` раз, затем достроит план с допущениями), разобьёт задачу на подзадачи и сохранит их в `tasks/<session>/task-N.md`. Рекомендованные подзадачи (например, страховка) создаются выключенными. Новое сообщение после готового плана меняет требования — план строится заново.
 
-Команды чата: `/plan`, `/history`, `/balance`, `/cancel`, `/help`, `/exit`. Продолжить сессию: `chat --user ivanov --session <id>`.
+Сразу после декомпозиции по каждой подзадаче проходит аукцион: один раунд закрытых ставок. Кандидаты — активные агенты категории (не более `auction.max_candidates`, при избытке их ранжирует LLM). Каждый агент ищет варианты в моковом каталоге своей компании (`data/mock/*.json`, инструмент LangChain `search_hotels` и т. п.), выбирает позиции и количество, а цену считает код — по каталогу и наценке из YAML агента, поэтому модель не может её выдумать. Ставки собираются параллельно (`auction.max_parallel`), не ответивший за `auction.bid_timeout` секунд агент выбывает. Победитель — по взвешенной оценке `score = w_price·(1 − price_norm) + w_conf·confidence + w_rating·rating_norm` (веса в `auction.weights`), при равенстве — более ранняя ставка. Если сумма лучших ставок превышает бюджет, оркестратор предупреждает и называет самую дешёвую комбинацию.
+
+Команды чата: `/plan`, `/bids [task-N]`, `/history`, `/balance`, `/cancel`, `/help`, `/exit`. Продолжить сессию: `chat --user ivanov --session <id>`.
 
 После обновления программы, если схема базы изменилась, CLI попросит пересоздать базу: `reset-demo -y`.
 
@@ -68,14 +70,17 @@ python -m agentic_economics --admin user add <id> --name "Имя" [--balance 500
 python -m agentic_economics --admin wallet balance client:ivanov
 python -m agentic_economics --admin wallet topup ivanov 100000
 python -m agentic_economics --admin ledger [--owner sky-lines]
+
+python -m agentic_economics --admin auction show <task_id>    # все ставки по подзадаче
 ```
 
 ## Структура
 
 ```
-agentic_economics/   код: cli, config, llm, orchestrator, storage, agents, wallet, seed
+agentic_economics/   код: cli, config, llm, orchestrator, auction, agents, storage, wallet, seed
 agents/              YAML-описания агентов-исполнителей (источник истины)
 data/seed.yaml       провайдеры и клиенты для reset-demo
+data/mock/           моковые каталоги: рейсы, отели, трансферы, товары, страховки
 config.yaml          настройки (без секретов)
 docs/TZ.md           техническое задание
 tests/               pytest
@@ -85,4 +90,10 @@ tests/               pytest
 
 ```bash
 pytest
+```
+
+Покрытие логики аукциона и кошельков (NFR-6):
+
+```bash
+pytest --cov=agentic_economics.auction --cov=agentic_economics.wallet --cov-report=term-missing
 ```

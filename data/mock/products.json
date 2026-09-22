@@ -1,0 +1,226 @@
+{
+  "_comment": "Демо-данные. Все компании, рейсы, отели, товары и цены вымышлены.",
+  "items": [
+    {
+      "id": "cm-af1-pink",
+      "title": "Nike Air Force 1 '07, розовые (Pink Foam)",
+      "brand": "Nike",
+      "color": "розовый",
+      "gender": "унисекс",
+      "sizes_in_stock": [
+        36,
+        37,
+        38,
+        39,
+        40,
+        41,
+        42,
+        43
+      ],
+      "delivery": "доставка по Москве 1–2 дня",
+      "price": 13990,
+      "unit": "пара",
+      "sellers": [
+        "crossmarket"
+      ]
+    },
+    {
+      "id": "cm-dunk-pink",
+      "title": "Nike Dunk Low, розовые (Medium Soft Pink)",
+      "brand": "Nike",
+      "color": "розовый",
+      "gender": "женские",
+      "sizes_in_stock": [
+        36,
+        37,
+        38,
+        39,
+        40
+      ],
+      "delivery": "доставка по Москве 1–2 дня",
+      "price": 12490,
+      "unit": "пара",
+      "sellers": [
+        "crossmarket"
+      ]
+    },
+    {
+      "id": "cm-pegasus-pink",
+      "title": "Nike Pegasus 41, розовые",
+      "brand": "Nike",
+      "color": "розовый",
+      "gender": "мужские",
+      "sizes_in_stock": [
+        41,
+        42,
+        43,
+        44,
+        45
+      ],
+      "delivery": "доставка по Москве 1–2 дня",
+      "price": 15990,
+      "unit": "пара",
+      "sellers": [
+        "crossmarket"
+      ]
+    },
+    {
+      "id": "cm-af1-white",
+      "title": "Nike Air Force 1 '07, белые",
+      "brand": "Nike",
+      "color": "белый",
+      "gender": "унисекс",
+      "sizes_in_stock": [
+        38,
+        39,
+        40,
+        41,
+        42,
+        43,
+        44,
+        45,
+        46
+      ],
+      "delivery": "доставка по Москве 1–2 дня",
+      "price": 12990,
+      "unit": "пара",
+      "sellers": [
+        "crossmarket"
+      ]
+    },
+    {
+      "id": "cm-ultraboost-black",
+      "title": "Adidas Ultraboost Light, чёрные",
+      "brand": "Adidas",
+      "color": "чёрный",
+      "gender": "мужские",
+      "sizes_in_stock": [
+        40,
+        41,
+        42,
+        43,
+        44
+      ],
+      "delivery": "доставка по Москве 1–2 дня",
+      "price": 17990,
+      "unit": "пара",
+      "sellers": [
+        "crossmarket"
+      ]
+    },
+    {
+      "id": "cm-nb574-grey",
+      "title": "New Balance 574, серые",
+      "brand": "New Balance",
+      "color": "серый",
+      "gender": "унисекс",
+      "sizes_in_stock": [
+        37,
+        38,
+        39,
+        40,
+        41,
+        42,
+        43
+      ],
+      "delivery": "доставка по Москве 1–2 дня",
+      "price": 10990,
+      "unit": "пара",
+      "sellers": [
+        "crossmarket"
+      ]
+    },
+    {
+      "id": "sp-revolution-pink",
+      "title": "Nike Revolution 7, розовые",
+      "brand": "Nike",
+      "color": "розовый",
+      "gender": "мужские",
+      "sizes_in_stock": [
+        40,
+        41,
+        43,
+        44
+      ],
+      "delivery": "самовывоз сегодня из 40 магазинов, доставка по России 2–5 дней",
+      "price": 6990,
+      "unit": "пара",
+      "sellers": [
+        "sportline"
+      ]
+    },
+    {
+      "id": "sp-af1-pink",
+      "title": "Nike Air Force 1 '07, розовые",
+      "brand": "Nike",
+      "color": "розовый",
+      "gender": "унисекс",
+      "sizes_in_stock": [
+        37,
+        38,
+        42,
+        44
+      ],
+      "delivery": "самовывоз сегодня из 40 магазинов, доставка по России 2–5 дней",
+      "price": 14490,
+      "unit": "пара",
+      "sellers": [
+        "sportline"
+      ]
+    },
+    {
+      "id": "sp-court-pink",
+      "title": "Nike Court Vision Low, розовые",
+      "brand": "Nike",
+      "color": "розовый",
+      "gender": "женские",
+      "sizes_in_stock": [
+        36,
+        37,
+        38,
+        39
+      ],
+      "delivery": "самовывоз сегодня из 40 магазинов, доставка по России 2–5 дней",
+      "price": 7490,
+      "unit": "пара",
+      "sellers": [
+        "sportline"
+      ]
+    },
+    {
+      "id": "sp-duramo-blue",
+      "title": "Adidas Duramo SL, синие",
+      "brand": "Adidas",
+      "color": "синий",
+      "gender": "мужские",
+      "sizes_in_stock": [
+        40,
+        41,
+        42,
+        43,
+        44,
+        45
+      ],
+      "delivery": "самовывоз сегодня из 40 магазинов, доставка по России 2–5 дней",
+      "price": 5990,
+      "unit": "пара",
+      "sellers": [
+        "sportline"
+      ]
+    },
+    {
+      "id": "sp-cap-nike",
+      "title": "Кепка Nike Club, чёрная",
+      "brand": "Nike",
+      "color": "чёрный",
+      "gender": "унисекс",
+      "sizes_in_stock": [],
+      "delivery": "самовывоз сегодня из 40 магазинов, доставка по России 2–5 дней",
+      "price": 2490,
+      "unit": "пара",
+      "sellers": [
+        "sportline"
+      ]
+    }
+  ]
+}

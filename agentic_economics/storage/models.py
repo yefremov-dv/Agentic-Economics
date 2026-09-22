@@ -158,7 +158,10 @@ class Bid(Base):
     confidence: Mapped[float] = mapped_column(Float)
     offer: Mapped[str] = mapped_column(Text)
     score: Mapped[float | None] = mapped_column(Float)
+    # winner | lost | declined | timeout | error
     status: Mapped[str] = mapped_column(String(16), default="submitted")
+    # выбранные позиции каталога и поисковые запросы агента
+    details: Mapped[dict] = mapped_column(JSON, default=dict)
     ts: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
 
 

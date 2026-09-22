@@ -46,6 +46,10 @@ class AuctionWeights(BaseModel):
 class AuctionConfig(BaseModel):
     max_candidates: int = Field(5, ge=1)
     bid_timeout: float = Field(30, gt=0)
+    # Одновременных запросов ставок к LLM (у GigaChat есть лимиты на параллельные запросы)
+    max_parallel: int = Field(4, ge=1)
+    # Модель агентов-исполнителей; пусто — llm.model
+    agent_model: str | None = None
     weights: AuctionWeights = AuctionWeights()
 
 

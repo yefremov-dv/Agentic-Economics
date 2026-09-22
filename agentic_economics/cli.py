@@ -104,7 +104,8 @@ for _sub in (agent_app, provider_app, user_app, wallet_app, auction_app):
 
 CHAT_HELP = """\
 [bold]Команды чата[/]
-  /plan     — текущий план: подзадачи, категории, зависимости
+  /plan     — план: подзадачи, зависимости, победители аукционов
+  /bids     — все ставки; /bids task-N — ставки по одной подзадаче
   /history  — история диалога
   /balance  — баланс кошелька
   /cancel   — отменить сессию
@@ -112,7 +113,7 @@ CHAT_HELP = """\
   /exit     — выход (сессию можно продолжить: chat --session <id>)
 Любой другой текст — сообщение оркестратору. Если план уже готов, сообщение меняет требования,
 и план строится заново.
-[dim]/bids появится вместе с аукционом (этап 3).[/]"""
+[dim]Подтверждение плана и выполнение появятся на этапе 5.[/]"""
 
 
 @app.command()
@@ -131,14 +132,15 @@ def chat(
         db.commit()
         try:
             llm = get_llm(st.settings, st.settings.orchestrator.model)
+            agent_llm = get_llm(st.settings, st.settings.auction.agent_model)
         except LLMNotConfigured as exc:
             raise fail(str(exc))
 
         try:
             if session:
-                orch = Orchestrator.resume(st.settings, db, llm, client.id, session)
+                orch = Orchestrator.resume(st.settings, db, llm, client.id, session, agent_llm=agent_llm)
             else:
-                orch = Orchestrator.start(st.settings, db, llm, client.id)
+                orch = Orchestrator.start(st.settings, db, llm, client.id, agent_llm=agent_llm)
         except OrchestratorError as exc:
             raise fail(str(exc))
 
@@ -151,7 +153,7 @@ def chat(
         else:
             console.print(f"Сессия [bold]{orch.session.id}[/]. Опишите задачу.")
             others = db.scalars(select(ChatSession.id).where(
-                ChatSession.user_id == client.id, ChatSession.status.in_(("active", "planned")),
+                ChatSession.user_id == client.id, ChatSession.status.not_in(("cancelled", "done")),
                 ChatSession.id != orch.session.id)).all()
             if others:
                 console.print(f"[dim]Незавершённые сессии: {', '.join(others)} (продолжить: --session <id>)[/]")
@@ -177,8 +179,8 @@ def chat(
                     console.print("Плана пока нет — опишите задачу.")
             elif text == "/history":
                 print_history(orch)
-            elif text == "/bids":
-                console.print("[yellow]Аукцион появится на этапе 3.[/]")
+            elif text == "/bids" or text.startswith("/bids "):
+                print_bids(orch, text.removeprefix("/bids").strip())
             elif text == "/cancel":
                 if typer.confirm("Отменить сессию?", default=False):
                     orch.cancel()
@@ -187,7 +189,8 @@ def chat(
             elif text.startswith("/"):
                 console.print(f"Неизвестная команда {text}. /help — список команд.")
             else:
-                with console.status("Оркестратор думает…"):
+                with console.status("Оркестратор думает…") as status:
+                    orch.on_progress = lambda message: status.update(message)
                     reply = orch.handle(text)
                 print_reply(orch, reply)
     console.print("До встречи!")
@@ -209,17 +212,61 @@ def print_reply(orch: Orchestrator, reply: Reply) -> None:
 
 def print_plan(orch: Orchestrator) -> None:
     tasks = orch.tasks()
-    table = Table("#", "Подзадача", "Категория", "Зависит от", "Ориентир", "Статус", title="План")
+    table = Table("#", "Подзадача", "Категория", "Зависит от", "Победитель", "Цена", "Ставок", "Статус", title="План")
+    total = 0
     for t in tasks:
         title = t.title + ("\n[dim]рекомендовано, выключено[/]" if t.recommended and not t.enabled else "")
+        winner = orch.winner(t)
+        bids = [b for b in orch.bids(t) if b.status in ("winner", "lost")]
+        if winner and t.enabled:
+            total += winner.price
         table.add_row(task_key(t.number), title, t.category,
                       ", ".join(task_key(n) for n in t.depends_on) or "—",
-                      fmt(t.budget_hint) if t.budget_hint else "—", t.status)
+                      winner.agent_id if winner else "—", fmt(winner.price) if winner else "—",
+                      str(len(bids)) if t.status != "new" else "—", t.status)
     console.print(table)
-    if orch.session.budget:
-        hints = sum(t.budget_hint or 0 for t in tasks if t.enabled)
-        console.print(f"Бюджет: {fmt(orch.session.budget)}, ориентиры по включённым подзадачам: {fmt(hints)}")
+    if total:
+        line = f"Итого по включённым подзадачам: [bold]{fmt(total)}[/]"
+        if orch.session.budget:
+            rest = orch.session.budget - total
+            line += f", бюджет {fmt(orch.session.budget)}, " + (
+                f"остаток {fmt(rest)}" if rest >= 0 else f"[red]превышение {fmt(-rest)}[/]")
+        console.print(line)
     console.print(f"[dim]Файлы: {orch.tasks_dir / orch.session.id}/[/]")
+
+
+BID_STATUS = {"winner": "[green]победитель[/]", "lost": "проиграл", "declined": "[dim]отказ[/]",
+              "timeout": "[red]таймаут[/]", "error": "[red]ошибка[/]"}
+
+
+def print_bids(orch: Orchestrator, which: str = "") -> None:
+    tasks = orch.tasks()
+    if which:
+        tasks = [t for t in tasks if task_key(t.number) == which or str(t.number) == which]
+        if not tasks:
+            console.print(f"Подзадача {which} не найдена.")
+            return
+    shown = False
+    for t in tasks:
+        bids = orch.bids(t)
+        if not bids:
+            continue
+        shown = True
+        agents = {a.id: a for a in orch.db.scalars(select(Agent).where(Agent.id.in_([b.agent_id for b in bids])))}
+        table = Table("Агент", "Цена", "Срок", "Уверен.", "Рейтинг", "Оценка", "Статус", "Предложение",
+                      title=f"{task_key(t.number)}: {t.title}", title_justify="left")
+        ordered = sorted(bids, key=lambda b: (b.score is None, -(b.score or 0), b.id))
+        for b in ordered:
+            a = agents.get(b.agent_id)
+            valid = b.status in ("winner", "lost")
+            table.add_row(b.agent_id, fmt(b.price) if valid else "—", b.eta or "—",
+                          f"{b.confidence:.2f}" if valid else "—",
+                          f"{a.rating:.1f} ({a.ratings_count})" if a else "—",
+                          f"{b.score:.3f}" if b.score is not None else "—",
+                          BID_STATUS.get(b.status, b.status), b.offer)
+        console.print(table)
+    if not shown:
+        console.print("Ставок пока нет — сначала опишите задачу.")
 
 
 def print_history(orch: Orchestrator, last: int | None = None) -> None:
@@ -555,9 +602,11 @@ def auction_show(ctx: typer.Context, task_id: int) -> None:
         task = db.get(Task, task_id)
         if task is None:
             raise fail(f"подзадача {task_id} не найдена (аукционы появятся на этапе 3)")
-        table = Table("Агент", "Цена", "Срок", "Уверенность", "Оценка", "Статус")
-        for b in db.scalars(select(Bid).where(Bid.task_id == task_id).order_by(Bid.score.desc())):
-            table.add_row(b.agent_id, fmt(b.price), b.eta or "", f"{b.confidence:.2f}",
-                          f"{b.score:.3f}" if b.score is not None else "", b.status)
-        console.print(f"[bold]task-{task.number}[/]: {task.title}")
+        table = Table("#", "Время (UTC)", "Агент", "Цена", "Срок", "Уверенность", "Оценка", "Статус", "Предложение")
+        for b in db.scalars(select(Bid).where(Bid.task_id == task_id).order_by(Bid.id)):
+            valid = b.status in ("winner", "lost")
+            table.add_row(str(b.id), f"{b.ts:%H:%M:%S}", b.agent_id, fmt(b.price) if valid else "—", b.eta or "",
+                          f"{b.confidence:.2f}" if valid else "—",
+                          f"{b.score:.3f}" if b.score is not None else "", b.status, b.offer)
+        console.print(f"[bold]task-{task.number}[/] ({task.session_id}): {task.title}")
         console.print(table)

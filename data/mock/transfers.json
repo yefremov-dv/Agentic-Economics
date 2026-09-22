@@ -1,0 +1,131 @@
+{
+  "_comment": "Демо-данные. Все компании, рейсы, отели, товары и цены вымышлены.",
+  "items": [
+    {
+      "id": "ka-belek-sedan",
+      "title": "Аэропорт Анталья (AYT) — Белек: Mercedes E-класс (индивидуальный VIP, встреча с табличкой)",
+      "route": "Аэропорт Анталья (AYT) — Белек",
+      "car": "Mercedes E-класс",
+      "type": "индивидуальный VIP, встреча с табличкой",
+      "max_passengers": 3,
+      "duration": "35 мин",
+      "price": 7400,
+      "unit": "поездка в одну сторону",
+      "sellers": [
+        "kara-transfer"
+      ]
+    },
+    {
+      "id": "ka-belek-van",
+      "title": "Аэропорт Анталья (AYT) — Белек: Mercedes V-класс (индивидуальный VIP, встреча с табличкой)",
+      "route": "Аэропорт Анталья (AYT) — Белек",
+      "car": "Mercedes V-класс",
+      "type": "индивидуальный VIP, встреча с табличкой",
+      "max_passengers": 6,
+      "duration": "35 мин",
+      "price": 9800,
+      "unit": "поездка в одну сторону",
+      "sellers": [
+        "kara-transfer"
+      ]
+    },
+    {
+      "id": "ka-kemer-sedan",
+      "title": "Аэропорт Анталья (AYT) — Кемер: Mercedes E-класс (индивидуальный VIP, встреча с табличкой)",
+      "route": "Аэропорт Анталья (AYT) — Кемер",
+      "car": "Mercedes E-класс",
+      "type": "индивидуальный VIP, встреча с табличкой",
+      "max_passengers": 3,
+      "duration": "55 мин",
+      "price": 9900,
+      "unit": "поездка в одну сторону",
+      "sellers": [
+        "kara-transfer"
+      ]
+    },
+    {
+      "id": "ka-side-sedan",
+      "title": "Аэропорт Анталья (AYT) — Сиде: Mercedes E-класс (индивидуальный VIP, встреча с табличкой)",
+      "route": "Аэропорт Анталья (AYT) — Сиде",
+      "car": "Mercedes E-класс",
+      "type": "индивидуальный VIP, встреча с табличкой",
+      "max_passengers": 3,
+      "duration": "1 ч 10 мин",
+      "price": 11500,
+      "unit": "поездка в одну сторону",
+      "sellers": [
+        "kara-transfer"
+      ]
+    },
+    {
+      "id": "sr-belek-group",
+      "title": "Аэропорт Анталья (AYT) — Белек: автобус (групповой)",
+      "route": "Аэропорт Анталья (AYT) — Белек",
+      "car": "автобус",
+      "type": "групповой",
+      "max_passengers": 45,
+      "duration": "1 ч (с заездами в отели)",
+      "price": 1900,
+      "unit": "поездка в одну сторону",
+      "sellers": [
+        "sunrise-travel"
+      ]
+    },
+    {
+      "id": "sr-belek-ind",
+      "title": "Аэропорт Анталья (AYT) — Белек: Volkswagen Passat (индивидуальный)",
+      "route": "Аэропорт Анталья (AYT) — Белек",
+      "car": "Volkswagen Passat",
+      "type": "индивидуальный",
+      "max_passengers": 3,
+      "duration": "35 мин",
+      "price": 5200,
+      "unit": "поездка в одну сторону",
+      "sellers": [
+        "sunrise-travel"
+      ]
+    },
+    {
+      "id": "sr-kemer-group",
+      "title": "Аэропорт Анталья (AYT) — Кемер: автобус (групповой)",
+      "route": "Аэропорт Анталья (AYT) — Кемер",
+      "car": "автобус",
+      "type": "групповой",
+      "max_passengers": 45,
+      "duration": "1 ч 30 мин (с заездами в отели)",
+      "price": 2300,
+      "unit": "поездка в одну сторону",
+      "sellers": [
+        "sunrise-travel"
+      ]
+    },
+    {
+      "id": "sr-side-group",
+      "title": "Аэропорт Анталья (AYT) — Сиде: автобус (групповой)",
+      "route": "Аэропорт Анталья (AYT) — Сиде",
+      "car": "автобус",
+      "type": "групповой",
+      "max_passengers": 45,
+      "duration": "1 ч 40 мин (с заездами в отели)",
+      "price": 2500,
+      "unit": "поездка в одну сторону",
+      "sellers": [
+        "sunrise-travel"
+      ]
+    },
+    {
+      "id": "sr-sharm-ind",
+      "title": "Аэропорт Шарм-эш-Шейх (SSH) — Наама-Бей: Toyota Camry (индивидуальный)",
+      "route": "Аэропорт Шарм-эш-Шейх (SSH) — Наама-Бей",
+      "car": "Toyota Camry",
+      "type": "индивидуальный",
+      "max_passengers": 3,
+      "duration": "20 мин",
+      "price": 3600,
+      "unit": "поездка в одну сторону",
+      "sellers": [
+        "sunrise-travel"
+      ]
+    }
+  ]
+}

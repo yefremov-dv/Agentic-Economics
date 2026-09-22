@@ -23,6 +23,8 @@ def config_file(tmp_path: Path) -> Path:
     agents_dir = tmp_path / "agents"
     shutil.copytree(ROOT / "agents", agents_dir)
     shutil.copy(ROOT / "data" / "seed.yaml", tmp_path / "seed.yaml")
+    # mock_data в YAML агентов указан относительно корня проекта — корнем в тестах служит tmp_path
+    shutil.copytree(ROOT / "data" / "mock", tmp_path / "data" / "mock")
     config = yaml.safe_load((ROOT / "config.yaml").read_text(encoding="utf-8"))
     config["paths"] = {
         "db": str(tmp_path / "var" / "test.db"),

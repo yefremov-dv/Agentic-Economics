@@ -66,10 +66,11 @@ def test_chat_questions_plan_and_commands(run, monkeypatch, seeded):
     out = result.output
     assert "1 500 000.00 VRUB" in out
     assert "Город вылета?" in out
-    assert "План готов." in out
+    assert "План готов, аукцион проведён." in out
     assert "Отель Maxx Royal Belek, 6 ночей" in out
     assert "рекомендовано, выключено" in out
-    assert "этапе 3" in out
+    assert "победитель" in out  # таблица /bids
+    assert "Итого по включённым подзадачам" in out
     session_id = re.search(r"Сессия (\S+)\. Опишите задачу", out).group(1)
     assert len(list((seeded.path("tasks_dir") / session_id).glob("task-*.md"))) == 5
 

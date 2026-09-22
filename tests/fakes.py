@@ -2,21 +2,77 @@
 
 from __future__ import annotations
 
+import asyncio
+import json
+
+from langchain_core.messages import AIMessage, SystemMessage, ToolMessage
 from pydantic import BaseModel
+
+from agentic_economics.agents.executor import BidDraft
 
 
 class FakeLLM:
-    def __init__(self, *responses):
+    """Оркестратор получает ответы из очереди responses по порядку.
+
+    Агенты-исполнители (bind_tools + BidDraft) по умолчанию ищут по названию подзадачи и ставят на первую
+    найденную позицию × 1. Поведение отдельных агентов задаётся в agents: {подстрока системного промпта: правило},
+    правило — dict с ключами query, bid (dict BidDraft), delay (с), error (исключение).
+    """
+
+    def __init__(self, *responses, agents: dict | None = None):
         self.responses = list(responses)
+        self.agents = agents or {}
         self.calls: list[tuple[type[BaseModel], list]] = []
+        self.bid_calls: list[list] = []
 
     def with_structured_output(self, schema, **_):
         return _Structured(self, schema)
+
+    def bind_tools(self, tools, **_):
+        return _Tools(self, tools)
+
+    def rule(self, messages) -> dict:
+        system = next((m.content for m in messages if isinstance(m, SystemMessage)), "")
+        return next((r for key, r in self.agents.items() if key in system), {})
+
+
+class _Tools:
+    def __init__(self, llm: FakeLLM, tools):
+        self.llm, self.tools = llm, tools
+
+    async def ainvoke(self, messages):
+        rule = self.llm.rule(messages)
+        if rule.get("delay"):
+            await asyncio.sleep(rule["delay"])
+        if rule.get("error"):
+            raise rule["error"]
+        if rule.get("no_tool"):
+            return AIMessage(content="Сейчас посмотрю.")
+        query = rule.get("query") or messages[-1].content.splitlines()[0].split(": ", 1)[-1]
+        return AIMessage(content="", tool_calls=[{"name": self.tools[0].name, "args": {"query": query},
+                                                  "id": "call-1", "type": "tool_call"}])
 
 
 class _Structured:
     def __init__(self, llm: FakeLLM, schema):
         self.llm, self.schema = llm, schema
+
+    async def ainvoke(self, messages):
+        assert self.schema is BidDraft, self.schema
+        self.llm.bid_calls.append(messages)
+        rule = self.llm.rule(messages)
+        if "bid" in rule:
+            return BidDraft.model_validate(rule["bid"])
+        found = []
+        for m in messages:
+            if isinstance(m, ToolMessage) and m.content.startswith("["):
+                found = json.loads(m.content)
+            elif "Результаты поиска" in str(m.content) and "[" in m.content:
+                found = json.loads(m.content[m.content.index("["):m.content.rindex("]") + 1])
+        if not found:
+            return BidDraft(participate=False, offer="нет подходящих позиций")
+        return BidDraft(participate=True, items=[{"item_id": found[0]["id"], "quantity": 1}],
+                        eta="1 день", confidence=0.8, offer=found[0]["title"])
 
     def invoke(self, messages):
         self.llm.calls.append((self.schema, messages))

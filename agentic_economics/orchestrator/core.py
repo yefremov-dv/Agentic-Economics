@@ -7,11 +7,11 @@ import secrets
 import shutil
 from dataclasses import dataclass, field
 from datetime import date
-from typing import Literal, TypeVar
+from typing import Callable, Literal, TypeVar
 
 from langchain_core.language_models.chat_models import BaseChatModel
 from pydantic import BaseModel
-from sqlalchemy import delete, select
+from sqlalchemy import delete, select, update
 from sqlalchemy.orm import Session
 
 from agentic_economics.config import Settings
@@ -19,7 +19,7 @@ from agentic_economics.money import fmt, to_minor
 from agentic_economics.orchestrator import prompts, taskfile
 from agentic_economics.orchestrator.planner import normalize
 from agentic_economics.orchestrator.schemas import Analysis, Decomposition
-from agentic_economics.storage.models import Agent, Message, Task
+from agentic_economics.storage.models import Agent, Bid, Message, Task
 from agentic_economics.storage.models import Session as ChatSession
 
 log = logging.getLogger(__name__)
@@ -49,18 +49,21 @@ class Reply:
 
 class Orchestrator:
     def __init__(self, settings: Settings, db: Session, llm: BaseChatModel, session: ChatSession,
-                 today: date | None = None) -> None:
+                 today: date | None = None, agent_llm: BaseChatModel | None = None) -> None:
         self.settings = settings
         self.db = db
         self.llm = llm
+        self.agent_llm = agent_llm or llm
         self.session = session
         self.today = today or date.today()
+        # Сообщения о ходе долгих шагов (аукциона) для интерфейса
+        self.on_progress: Callable[[str], None] | None = None
 
     # ------------------------------------------------------------ сессии
 
     @classmethod
     def start(cls, settings: Settings, db: Session, llm: BaseChatModel, user_id: str,
-              today: date | None = None) -> Orchestrator:
+              today: date | None = None, agent_llm: BaseChatModel | None = None) -> Orchestrator:
         today = today or date.today()
         while True:
             session_id = f"{today:%Y-%m-%d}-{secrets.token_hex(2)}"
@@ -70,22 +73,28 @@ class Orchestrator:
         db.add(session)
         db.commit()
         log.info("Новая сессия %s клиента %s", session_id, user_id)
-        return cls(settings, db, llm, session, today)
+        return cls(settings, db, llm, session, today, agent_llm)
 
     @classmethod
     def resume(cls, settings: Settings, db: Session, llm: BaseChatModel, user_id: str, session_id: str,
-               today: date | None = None) -> Orchestrator:
+               today: date | None = None, agent_llm: BaseChatModel | None = None) -> Orchestrator:
         session = db.get(ChatSession, session_id)
         # Чужая сессия неотличима от несуществующей: клиент видит только свои (FR-27a)
         if session is None or session.user_id != user_id:
             raise OrchestratorError(f"сессия '{session_id}' не найдена")
         if session.status == "cancelled":
             raise OrchestratorError(f"сессия '{session_id}' отменена")
-        return cls(settings, db, llm, session, today)
+        return cls(settings, db, llm, session, today, agent_llm)
 
     def tasks(self) -> list[Task]:
         return list(self.db.scalars(
             select(Task).where(Task.session_id == self.session.id).order_by(Task.number)))
+
+    def bids(self, task: Task) -> list[Bid]:
+        return list(self.db.scalars(select(Bid).where(Bid.task_id == task.id).order_by(Bid.id)))
+
+    def winner(self, task: Task) -> Bid | None:
+        return self.db.get(Bid, task.winner_bid_id) if task.winner_bid_id else None
 
     def messages(self) -> list[Message]:
         return list(self.db.scalars(
@@ -94,7 +103,7 @@ class Orchestrator:
     def cancel(self) -> None:
         for task in self.tasks():
             task.status = "cancelled"
-            taskfile.write(task, self.tasks_dir)
+            taskfile.write(task, self.tasks_dir, self.winner(task))
         self.session.status = "cancelled"
         self.db.commit()
         log.info("Сессия %s отменена", self.session.id)
@@ -147,7 +156,7 @@ class Orchestrator:
             return Reply("error", "Не получилось разбить задачу на подзадачи для доступных агентов. "
                                   "Опишите её подробнее.", warnings=plan.warnings)
 
-        replanned = self.session.status == "planned"
+        replanned = self.session.status in ("planned", "awaiting_approval")
         self._clear_tasks()
         tasks = []
         for p in plan.tasks:
@@ -163,11 +172,19 @@ class Orchestrator:
         for task in tasks:
             taskfile.write(task, self.tasks_dir)
         self.session.status = "planned"
-        self._save("plan", plan_summary(tasks))
         self.db.commit()
         log.info("Сессия %s: план из %d подзадач", self.session.id, len(tasks))
-        text = "План обновлён." if replanned else "План готов."
-        return Reply("plan", text, tasks=tasks, warnings=plan.warnings)
+
+        # Аукцион по каждой подзадаче, включая рекомендованные (FR-9a)
+        from agentic_economics.auction.runner import run_auctions
+
+        run_auctions(self.settings, self.db, tasks, self.agent_llm, self.llm, self.today, self.on_progress)
+        self.session.status = "awaiting_approval"
+        warnings = plan.warnings + self._auction_warnings(tasks)
+        self._save("plan", plan_summary(tasks, self.winner))
+        self.db.commit()
+        text = "План обновлён, аукцион проведён." if replanned else "План готов, аукцион проведён."
+        return Reply("plan", text, tasks=tasks, warnings=warnings)
 
     # ------------------------------------------------------------ служебное
 
@@ -216,8 +233,32 @@ class Orchestrator:
             result.setdefault(a.category, []).append(a.description)
         return {c: "; ".join(d) for c, d in result.items()}
 
+    def _auction_warnings(self, tasks: list[Task]) -> list[str]:
+        """Подзадачи без ставок и контроль бюджета (FR-9)."""
+        warnings = []
+        total = cheapest = 0
+        for task in tasks:
+            winner = self.winner(task)
+            if winner is None:
+                warnings.append(f"{taskfile.task_key(task.number)}: ни одной ставки — подзадачу некому выполнить")
+                continue
+            if task.enabled:
+                total += winner.price
+                cheapest += min(b.price for b in self.bids(task) if b.status in ("winner", "lost"))
+        budget = self.session.budget
+        if budget and total > budget:
+            text = f"Сумма лучших ставок {fmt(total)} превышает бюджет {fmt(budget)} на {fmt(total - budget)}."
+            if cheapest < total:
+                text += f" Самые дешёвые ставки дают {fmt(cheapest)}."
+            text += " Можно выбрать более дешёвых исполнителей, отказаться от части подзадач или изменить требования."
+            warnings.append(text)
+        return warnings
+
     def _clear_tasks(self) -> None:
-        """Удаляет прежний план сессии (на этапе 2 у подзадач ещё нет ставок)."""
+        """Удаляет прежний план сессии вместе со ставками (до подтверждения денег по ним нет)."""
+        ids = select(Task.id).where(Task.session_id == self.session.id)
+        self.db.execute(update(Task).where(Task.session_id == self.session.id).values(winner_bid_id=None))
+        self.db.execute(delete(Bid).where(Bid.task_id.in_(ids)))
         self.db.execute(delete(Task).where(Task.session_id == self.session.id))
         folder = self.tasks_dir / self.session.id
         if folder.exists():
@@ -227,10 +268,13 @@ class Orchestrator:
         return f"{self.today:%d.%m.%Y}"
 
 
-def plan_summary(tasks: list[Task]) -> str:
+def plan_summary(tasks: list[Task], winner_of: Callable[[Task], Bid | None] = lambda t: None) -> str:
     lines = ["План:"]
     for t in tasks:
         extra = []
+        winner = winner_of(t)
+        if winner:
+            extra.append(f"исполнитель {winner.agent_id}, {fmt(winner.price)}")
         if t.depends_on:
             extra.append("после " + ", ".join(taskfile.task_key(n) for n in t.depends_on))
         if t.recommended:

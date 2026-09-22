@@ -7,14 +7,14 @@ from pathlib import Path
 
 import yaml
 
-from agentic_economics.storage.models import Task
+from agentic_economics.storage.models import Bid, Task
 
 
 def task_key(number: int) -> str:
     return f"task-{number}"
 
 
-def render(task: Task) -> str:
+def render(task: Task, winner: Bid | None = None) -> str:
     meta: dict = {
         "id": task_key(task.number),
         "session": task.session_id,
@@ -26,6 +26,9 @@ def render(task: Task) -> str:
     }
     if task.budget_hint is not None:
         meta["budget_hint"] = _rub(task.budget_hint)
+    if winner is not None:
+        meta["winner"] = winner.agent_id
+        meta["price"] = _rub(winner.price)
     front = yaml.safe_dump(meta, allow_unicode=True, sort_keys=False, default_flow_style=None).strip()
     lines = ["---", front, "---", f"# {task.title}", ""]
     if task.description:
@@ -35,10 +38,10 @@ def render(task: Task) -> str:
     return "\n".join(lines)
 
 
-def write(task: Task, tasks_dir: Path) -> Path:
+def write(task: Task, tasks_dir: Path, winner: Bid | None = None) -> Path:
     path = tasks_dir / task.session_id / f"{task_key(task.number)}.md"
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(render(task), encoding="utf-8")
+    path.write_text(render(task, winner), encoding="utf-8")
     return path
 
 

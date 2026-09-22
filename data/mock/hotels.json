@@ -1,0 +1,166 @@
+{
+  "_comment": "Демо-данные. Все компании, рейсы, отели, товары и цены вымышлены.",
+  "items": [
+    {
+      "id": "mrb-deluxe-sr",
+      "title": "Maxx Royal Belek 5*, Deluxe Room, Ultra All Inclusive",
+      "hotel": "Maxx Royal Belek",
+      "stars": 5,
+      "resort": "Белек, Анталья",
+      "country": "Турция",
+      "room": "Deluxe Room",
+      "board": "Ultra All Inclusive",
+      "cancellation": "бесплатная отмена за 7 дней",
+      "price": 89000,
+      "unit": "ночь в номере для 1–2 взрослых",
+      "sellers": [
+        "sunrise-travel"
+      ]
+    },
+    {
+      "id": "mrb-family-sr",
+      "title": "Maxx Royal Belek 5*, Family Suite, Ultra All Inclusive",
+      "hotel": "Maxx Royal Belek",
+      "stars": 5,
+      "resort": "Белек, Анталья",
+      "country": "Турция",
+      "room": "Family Suite",
+      "board": "Ultra All Inclusive",
+      "cancellation": "бесплатная отмена за 7 дней",
+      "price": 142000,
+      "unit": "ночь в номере для 1–2 взрослых",
+      "sellers": [
+        "sunrise-travel"
+      ]
+    },
+    {
+      "id": "mrb-villa-sr",
+      "title": "Maxx Royal Belek 5*, Villa with Pool, Ultra All Inclusive",
+      "hotel": "Maxx Royal Belek",
+      "stars": 5,
+      "resort": "Белек, Анталья",
+      "country": "Турция",
+      "room": "Villa with Pool",
+      "board": "Ultra All Inclusive",
+      "cancellation": "невозвратный тариф",
+      "price": 310000,
+      "unit": "ночь в номере для 1–2 взрослых",
+      "sellers": [
+        "sunrise-travel"
+      ]
+    },
+    {
+      "id": "mrb-deluxe-bo",
+      "title": "Maxx Royal Belek 5*, Deluxe Room (категория по наличию), Ultra All Inclusive",
+      "hotel": "Maxx Royal Belek",
+      "stars": 5,
+      "resort": "Белек, Анталья",
+      "country": "Турция",
+      "room": "Deluxe Room (категория по наличию)",
+      "board": "Ultra All Inclusive",
+      "cancellation": "бесплатная отмена за 3 дня",
+      "price": 84500,
+      "unit": "ночь в номере для 1–2 взрослых",
+      "sellers": [
+        "bosphorus"
+      ]
+    },
+    {
+      "id": "mrb-suite-bo",
+      "title": "Maxx Royal Belek 5*, Junior Suite, Ultra All Inclusive",
+      "hotel": "Maxx Royal Belek",
+      "stars": 5,
+      "resort": "Белек, Анталья",
+      "country": "Турция",
+      "room": "Junior Suite",
+      "board": "Ultra All Inclusive",
+      "cancellation": "бесплатная отмена за 3 дня",
+      "price": 118000,
+      "unit": "ночь в номере для 1–2 взрослых",
+      "sellers": [
+        "bosphorus"
+      ]
+    },
+    {
+      "id": "regnum-sr",
+      "title": "Regnum Carya 5*, Deluxe Room, All Inclusive",
+      "hotel": "Regnum Carya",
+      "stars": 5,
+      "resort": "Белек, Анталья",
+      "country": "Турция",
+      "room": "Deluxe Room",
+      "board": "All Inclusive",
+      "cancellation": "бесплатная отмена за 7 дней",
+      "price": 61000,
+      "unit": "ночь в номере для 1–2 взрослых",
+      "sellers": [
+        "sunrise-travel",
+        "bosphorus"
+      ]
+    },
+    {
+      "id": "rixos-kemer-bo",
+      "title": "Rixos Sungate 5*, Standard Room, All Inclusive",
+      "hotel": "Rixos Sungate",
+      "stars": 5,
+      "resort": "Кемер, Анталья",
+      "country": "Турция",
+      "room": "Standard Room",
+      "board": "All Inclusive",
+      "cancellation": "бесплатная отмена за 3 дня",
+      "price": 38500,
+      "unit": "ночь в номере для 1–2 взрослых",
+      "sellers": [
+        "bosphorus"
+      ]
+    },
+    {
+      "id": "sea-breeze-side-bo",
+      "title": "Side Sea Breeze 4*, Standard Room, All Inclusive",
+      "hotel": "Side Sea Breeze",
+      "stars": 4,
+      "resort": "Сиде, Анталья",
+      "country": "Турция",
+      "room": "Standard Room",
+      "board": "All Inclusive",
+      "cancellation": "бесплатная отмена за 3 дня",
+      "price": 14900,
+      "unit": "ночь в номере для 1–2 взрослых",
+      "sellers": [
+        "bosphorus"
+      ]
+    },
+    {
+      "id": "pera-istanbul-bo",
+      "title": "Pera Palace Heritage 5*, Classic Room, Завтрак",
+      "hotel": "Pera Palace Heritage",
+      "stars": 5,
+      "resort": "Стамбул",
+      "country": "Турция",
+      "room": "Classic Room",
+      "board": "Завтрак",
+      "cancellation": "бесплатная отмена за 2 дня",
+      "price": 32000,
+      "unit": "ночь в номере для 1–2 взрослых",
+      "sellers": [
+        "bosphorus"
+      ]
+    },
+    {
+      "id": "sharm-coral-sr",
+      "title": "Coral Sea Royal 5*, Superior Room, All Inclusive",
+      "hotel": "Coral Sea Royal",
+      "stars": 5,
+      "resort": "Шарм-эш-Шейх",
+      "country": "Египет",
+      "room": "Superior Room",
+      "board": "All Inclusive",
+      "cancellation": "бесплатная отмена за 7 дней",
+      "price": 27500,
+      "unit": "ночь в номере для 1–2 взрослых",
+      "sellers": [
+        "sunrise-travel"
+      ]
+    }
+  ]
+}

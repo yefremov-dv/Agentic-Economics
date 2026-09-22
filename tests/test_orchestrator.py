@@ -59,8 +59,8 @@ def test_plan_files_and_rows(seeded, db):
 
     insurance = by_title["Страховка для выезда за рубеж"]
     assert insurance.recommended and not insurance.enabled  # FR-9a
-    assert all(t.status == "new" for t in tasks)
-    assert orch.session.status == "planned"
+    assert all(t.status == "awaiting_approval" for t in tasks)
+    assert orch.session.status == "awaiting_approval"
 
     folder = seeded.path("tasks_dir") / orch.session.id
     assert sorted(p.name for p in folder.iterdir()) == [f"task-{n}.md" for n in range(1, 6)]
@@ -91,7 +91,7 @@ def test_change_requirements_rebuilds_plan(seeded, db):
     orch, _ = start(seeded, db, analysis(), TURKEY_PLAN, analysis(), small)
     orch.handle(REQUEST)
     reply = orch.handle("Кроссовки не нужны, трансфер тоже")
-    assert reply.kind == "plan" and reply.text == "План обновлён."
+    assert reply.kind == "plan" and reply.text.startswith("План обновлён")
     assert [t.title for t in orch.tasks()] == ["Авиабилеты", "Отель"]
     folder = seeded.path("tasks_dir") / orch.session.id
     assert sorted(p.name for p in folder.iterdir()) == ["task-1.md", "task-2.md"]

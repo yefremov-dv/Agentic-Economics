@@ -20,6 +20,9 @@ orchestrator:
 auction:
   max_candidates: 5
   bid_timeout: 30
+  max_parallel: 4
+  # Модель агентов-исполнителей; пусто — llm.model
+  agent_model:
   weights:
     price: 0.5
     confidence: 0.3
