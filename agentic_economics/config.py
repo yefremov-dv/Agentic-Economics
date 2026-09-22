@@ -24,7 +24,7 @@ class PathsConfig(BaseModel):
 
 
 class LLMConfig(BaseModel):
-    model: str = "GigaChat"
+    model: str = "GigaChat-2"
     temperature: float = 0.3
     timeout: float = 60
     max_retries: int = 3

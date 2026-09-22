@@ -31,6 +31,8 @@ python -m agentic_economics check-llm
 
 Если OAuth-эндпоинт `ngw.devices.sberbank.ru:9443` недоступен (например, прокси пропускает только порт 443), получите токен доступа на другой машине и укажите его в `GIGACHAT_ACCESS_TOKEN` — тогда запрос за токеном не делается. Токен живёт 30 минут.
 
+Модель задаётся в `config.yaml` (`llm.model`, по умолчанию `GigaChat-2`). Доступны также `GigaChat-2-Pro`, `GigaChat-2-Max`, `GigaChat-3-Lightning` и другие — список зависит от scope.
+
 ## Запуск
 
 ```bash
