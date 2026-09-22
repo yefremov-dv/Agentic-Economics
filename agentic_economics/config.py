@@ -54,6 +54,8 @@ class GigaChatSecrets(BaseSettings):
     model_config = SettingsConfigDict(env_prefix="GIGACHAT_", extra="ignore")
 
     credentials: SecretStr | None = None
+    # Готовый токен доступа (живёт 30 минут). Если задан, OAuth-запрос за токеном не делается.
+    access_token: SecretStr | None = None
     scope: str = "GIGACHAT_API_PERS"
     verify_ssl_certs: bool = True
 

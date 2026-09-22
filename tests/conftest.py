@@ -13,7 +13,7 @@ ROOT = Path(__file__).resolve().parent.parent
 @pytest.fixture(autouse=True)
 def no_real_secrets(monkeypatch):
     """Тесты не должны видеть настоящие ключи GigaChat из окружения или .env."""
-    for name in ("GIGACHAT_CREDENTIALS", "GIGACHAT_SCOPE", "GIGACHAT_VERIFY_SSL_CERTS"):
+    for name in ("GIGACHAT_CREDENTIALS", "GIGACHAT_ACCESS_TOKEN", "GIGACHAT_SCOPE", "GIGACHAT_VERIFY_SSL_CERTS"):
         monkeypatch.delenv(name, raising=False)
     monkeypatch.setattr("agentic_economics.config.load_dotenv", lambda **_: None)
 

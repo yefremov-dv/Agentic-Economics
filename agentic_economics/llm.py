@@ -15,12 +15,15 @@ def get_llm(settings: Settings) -> BaseChatModel:
     from langchain_gigachat import GigaChat
 
     secrets = settings.gigachat
-    if secrets.credentials is None or not secrets.credentials.get_secret_value():
+    credentials = secrets.credentials.get_secret_value() if secrets.credentials else ""
+    access_token = secrets.access_token.get_secret_value() if secrets.access_token else ""
+    if not credentials and not access_token:
         raise LLMNotConfigured(
             "Не задан GIGACHAT_CREDENTIALS. Скопируйте .env.example в .env и укажите ключ авторизации."
         )
     return GigaChat(
-        credentials=secrets.credentials.get_secret_value(),
+        credentials=credentials or None,
+        access_token=access_token or None,
         scope=secrets.scope,
         verify_ssl_certs=secrets.verify_ssl_certs,
         model=settings.llm.model,
