@@ -28,7 +28,8 @@ from agentic_economics.orchestrator.taskfile import task_key
 from agentic_economics.storage.db import SchemaOutdated, make_sessionmaker
 from agentic_economics.storage.models import Agent, Bid, Provider, Task, Transaction, User, Wallet
 from agentic_economics.storage.models import Session as ChatSession
-from agentic_economics.wallet.ledger import balance, find_wallet, get_wallet, topup
+from agentic_economics.wallet.escrow import reserved
+from agentic_economics.wallet.ledger import SYSTEM_OWNER, balance, find_wallet, get_wallet, topup
 
 log = logging.getLogger(__name__)
 console = Console()
@@ -171,7 +172,7 @@ def chat(
             if text == "/help":
                 console.print(CHAT_HELP)
             elif text == "/balance":
-                console.print(f"Баланс: [bold]{fmt(balance(db, wallet), wallet.currency)}[/]")
+                print_client_balance(db, wallet)
             elif text == "/plan":
                 if orch.tasks():
                     print_plan(orch)
@@ -194,6 +195,15 @@ def chat(
                     reply = orch.handle(text)
                 print_reply(orch, reply)
     console.print("До встречи!")
+
+
+def print_client_balance(db: Session, wallet: Wallet) -> None:
+    db.commit()  # свежие данные: другой терминал мог изменить баланс
+    line = f"Доступно: [bold]{fmt(balance(db, wallet), wallet.currency)}[/]"
+    held = reserved(db, wallet.owner_id)
+    if held:
+        line += f", заблокировано в эскроу: {fmt(held, wallet.currency)}"
+    console.print(line)
 
 
 def print_reply(orch: Orchestrator, reply: Reply) -> None:
@@ -559,6 +569,29 @@ def check_id(value: str) -> None:
 
 
 # --- wallet
+
+
+OWNER_ORDER = {"client": 0, "provider": 1, "platform": 2, "system": 3}
+
+
+@wallet_app.command("list")
+def wallet_list(ctx: typer.Context) -> None:
+    """Все кошельки и сверка: сумма всех балансов равна нулю (деньги не создаются и не исчезают)."""
+    st = state(ctx)
+    with st.db() as db:
+        wallets = sorted(db.scalars(select(Wallet)), key=lambda w: (OWNER_ORDER.get(w.owner_type, 9), w.owner_id))
+        table = Table("Кошелёк", "Баланс", "В эскроу")
+        total = issued = 0
+        for w in wallets:
+            b = balance(db, w)
+            total += b
+            if (w.owner_type, w.owner_id) == SYSTEM_OWNER:
+                issued = -b
+            held = reserved(db, w.owner_id) if w.owner_type == "client" else 0
+            table.add_row(f"{w.owner_type}:{w.owner_id}", fmt(b, w.currency), fmt(held, w.currency) if held else "")
+        console.print(table)
+        console.print(f"Выпущено (эмиссия): {fmt(issued)}. Сумма всех балансов: {fmt(total)} "
+                      + ("[green]— сходится[/]" if total == 0 else "[red]— РАСХОЖДЕНИЕ[/]"))
 
 
 @wallet_app.command("balance")

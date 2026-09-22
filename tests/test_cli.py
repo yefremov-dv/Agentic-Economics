@@ -124,3 +124,27 @@ def test_check_llm_without_credentials(run):
     result = run("check-llm")
     assert result.exit_code == 1
     assert "GIGACHAT_CREDENTIALS" in result.output
+
+
+def test_wallet_list_reconciles(run):
+    result = run("--admin", "wallet", "list")
+    assert result.exit_code == 0
+    assert "client:ivanov" in result.output and "system:emission" in result.output
+    assert "Выпущено (эмиссия): 4 500 000.00 VRUB" in result.output
+    assert "сходится" in result.output
+
+
+def test_balance_shows_escrow(run, monkeypatch, seeded):
+    from agentic_economics.storage.db import make_sessionmaker
+    from agentic_economics.storage.models import Task
+    from agentic_economics.wallet.escrow import hold
+
+    use_llm(monkeypatch, analysis(), TURKEY_PLAN)
+    run("chat", "--user", "ivanov", input="Хочу в Турцию\n/exit\n")
+    with make_sessionmaker(seeded)() as db:
+        task = db.query(Task).filter(Task.number == 1).one()
+        hold(db, "ivanov", [(task, 100_000_00)])
+    out = run("chat", "--user", "ivanov", input="/balance\n/exit\n").output
+    assert "Доступно: 1 400 000.00 VRUB, заблокировано в эскроу: 100 000.00 VRUB" in out
+    listing = run("--admin", "wallet", "list").output
+    assert "system:escrow" in listing and "сходится" in listing
