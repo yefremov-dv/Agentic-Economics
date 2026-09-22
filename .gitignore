@@ -15,3 +15,5 @@ venv/
 .pytest_cache/
 build/
 dist/
+.coverage
+htmlcov/
