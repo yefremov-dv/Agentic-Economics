@@ -20,10 +20,14 @@ from sqlalchemy.orm import Session, sessionmaker
 from agentic_economics.agents.registry import SyncReport, sync_agents
 from agentic_economics.agents.spec import ID_PATTERN, load_spec, set_active
 from agentic_economics.config import Settings, load_settings
+from agentic_economics.llm import LLMNotConfigured, get_llm
 from agentic_economics.logging_setup import setup_logging
 from agentic_economics.money import fmt, to_minor
-from agentic_economics.storage.db import make_sessionmaker
+from agentic_economics.orchestrator import Orchestrator, OrchestratorError, Reply
+from agentic_economics.orchestrator.taskfile import task_key
+from agentic_economics.storage.db import SchemaOutdated, make_sessionmaker
 from agentic_economics.storage.models import Agent, Bid, Provider, Task, Transaction, User, Wallet
+from agentic_economics.storage.models import Session as ChatSession
 from agentic_economics.wallet.ledger import balance, find_wallet, get_wallet, topup
 
 log = logging.getLogger(__name__)
@@ -50,7 +54,10 @@ class AppState:
 
     @cached_property
     def sessions(self) -> sessionmaker:
-        return make_sessionmaker(self.settings)
+        try:
+            return make_sessionmaker(self.settings)
+        except SchemaOutdated as exc:
+            raise fail(f"база устарела: {exc}")
 
     def db(self) -> Session:
         return self.sessions()
@@ -97,10 +104,15 @@ for _sub in (agent_app, provider_app, user_app, wallet_app, auction_app):
 
 CHAT_HELP = """\
 [bold]Команды чата[/]
+  /plan     — текущий план: подзадачи, категории, зависимости
+  /history  — история диалога
   /balance  — баланс кошелька
+  /cancel   — отменить сессию
   /help     — эта справка
-  /exit     — выход
-[dim]Команды /plan, /bids, /history, /cancel появятся вместе с оркестратором (этап 2–3).[/]"""
+  /exit     — выход (сессию можно продолжить: chat --session <id>)
+Любой другой текст — сообщение оркестратору. Если план уже готов, сообщение меняет требования,
+и план строится заново.
+[dim]/bids появится вместе с аукционом (этап 3).[/]"""
 
 
 @app.command()
@@ -117,10 +129,33 @@ def chat(
             raise fail(f"клиент '{user}' не найден. Список клиентов: python -m agentic_economics --admin user list")
         wallet = get_wallet(db, "client", client.id, st.settings.wallet.currency)
         db.commit()
+        try:
+            llm = get_llm(st.settings, st.settings.orchestrator.model)
+        except LLMNotConfigured as exc:
+            raise fail(str(exc))
+
+        try:
+            if session:
+                orch = Orchestrator.resume(st.settings, db, llm, client.id, session)
+            else:
+                orch = Orchestrator.start(st.settings, db, llm, client.id)
+        except OrchestratorError as exc:
+            raise fail(str(exc))
 
         console.print(f"[bold]Agentic Economics[/] — здравствуйте, {client.name}! Введите /help для справки.")
         if session:
-            console.print("[yellow]Продолжение сессий появится на этапе 2.[/]")
+            console.print(f"Продолжаем сессию [bold]{orch.session.id}[/].")
+            print_history(orch, last=6)
+            if orch.tasks():
+                print_plan(orch)
+        else:
+            console.print(f"Сессия [bold]{orch.session.id}[/]. Опишите задачу.")
+            others = db.scalars(select(ChatSession.id).where(
+                ChatSession.user_id == client.id, ChatSession.status.in_(("active", "planned")),
+                ChatSession.id != orch.session.id)).all()
+            if others:
+                console.print(f"[dim]Незавершённые сессии: {', '.join(others)} (продолжить: --session <id>)[/]")
+
         while True:
             try:
                 text = console.input("[bold cyan]вы>[/] ").strip()
@@ -135,18 +170,72 @@ def chat(
                 console.print(CHAT_HELP)
             elif text == "/balance":
                 console.print(f"Баланс: [bold]{fmt(balance(db, wallet), wallet.currency)}[/]")
+            elif text == "/plan":
+                if orch.tasks():
+                    print_plan(orch)
+                else:
+                    console.print("Плана пока нет — опишите задачу.")
+            elif text == "/history":
+                print_history(orch)
+            elif text == "/bids":
+                console.print("[yellow]Аукцион появится на этапе 3.[/]")
+            elif text == "/cancel":
+                if typer.confirm("Отменить сессию?", default=False):
+                    orch.cancel()
+                    console.print("Сессия отменена.")
+                    break
             elif text.startswith("/"):
                 console.print(f"Неизвестная команда {text}. /help — список команд.")
             else:
-                console.print("[yellow]Оркестратор ещё не подключён — он появится на этапе 2.[/]")
+                with console.status("Оркестратор думает…"):
+                    reply = orch.handle(text)
+                print_reply(orch, reply)
     console.print("До встречи!")
+
+
+def print_reply(orch: Orchestrator, reply: Reply) -> None:
+    if reply.kind == "questions":
+        console.print(f"[bold magenta]оркестратор>[/] {reply.text}")
+        for q in reply.questions:
+            console.print(f"  • {q}")
+    elif reply.kind == "plan":
+        console.print(f"[bold magenta]оркестратор>[/] {reply.text}")
+        print_plan(orch)
+    else:
+        console.print(f"[bold magenta]оркестратор>[/] [yellow]{reply.text}[/]")
+    for w in reply.warnings:
+        console.print(f"[dim]  ! {w}[/]")
+
+
+def print_plan(orch: Orchestrator) -> None:
+    tasks = orch.tasks()
+    table = Table("#", "Подзадача", "Категория", "Зависит от", "Ориентир", "Статус", title="План")
+    for t in tasks:
+        title = t.title + ("\n[dim]рекомендовано, выключено[/]" if t.recommended and not t.enabled else "")
+        table.add_row(task_key(t.number), title, t.category,
+                      ", ".join(task_key(n) for n in t.depends_on) or "—",
+                      fmt(t.budget_hint) if t.budget_hint else "—", t.status)
+    console.print(table)
+    if orch.session.budget:
+        hints = sum(t.budget_hint or 0 for t in tasks if t.enabled)
+        console.print(f"Бюджет: {fmt(orch.session.budget)}, ориентиры по включённым подзадачам: {fmt(hints)}")
+    console.print(f"[dim]Файлы: {orch.tasks_dir / orch.session.id}/[/]")
+
+
+def print_history(orch: Orchestrator, last: int | None = None) -> None:
+    messages = orch.messages()
+    if last:
+        messages = messages[-last:]
+    if not messages:
+        console.print("[dim]История пуста.[/]")
+    names = {"user": "[bold cyan]вы[/]", "assistant": "[bold magenta]оркестратор[/]", "plan": "[bold magenta]оркестратор[/]"}
+    for m in messages:
+        console.print(f"{names.get(m.role, m.role)}> {m.content}")
 
 
 @app.command("check-llm")
 def check_llm(ctx: typer.Context) -> None:
     """Проверить подключение к GigaChat."""
-    from agentic_economics.llm import LLMNotConfigured, get_llm
-
     st = state(ctx)
     try:
         llm = get_llm(st.settings)

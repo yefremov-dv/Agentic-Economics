@@ -11,7 +11,7 @@ class LLMNotConfigured(RuntimeError):
     pass
 
 
-def get_llm(settings: Settings) -> BaseChatModel:
+def get_llm(settings: Settings, model: str | None = None) -> BaseChatModel:
     from langchain_gigachat import GigaChat
 
     secrets = settings.gigachat
@@ -26,7 +26,7 @@ def get_llm(settings: Settings) -> BaseChatModel:
         access_token=access_token or None,
         scope=secrets.scope,
         verify_ssl_certs=secrets.verify_ssl_certs,
-        model=settings.llm.model,
+        model=model or settings.llm.model,
         temperature=settings.llm.temperature,
         timeout=settings.llm.timeout,
         max_retries=settings.llm.max_retries,

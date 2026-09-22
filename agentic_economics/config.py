@@ -30,6 +30,13 @@ class LLMConfig(BaseModel):
     max_retries: int = 3
 
 
+class OrchestratorConfig(BaseModel):
+    # Модель для диалога и декомпозиции; пусто — llm.model
+    model: str | None = None
+    # Сколько раз можно переспросить клиента, прежде чем декомпозировать с допущениями
+    max_clarification_rounds: int = Field(2, ge=0)
+
+
 class AuctionWeights(BaseModel):
     price: float = 0.5
     confidence: float = 0.3
@@ -64,6 +71,7 @@ class Settings(BaseModel):
     root: Path
     paths: PathsConfig = PathsConfig()
     llm: LLMConfig = LLMConfig()
+    orchestrator: OrchestratorConfig = OrchestratorConfig()
     auction: AuctionConfig = AuctionConfig()
     wallet: WalletConfig = WalletConfig()
 

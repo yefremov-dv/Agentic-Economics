@@ -127,6 +127,8 @@ class Task(Base):
     session_id: Mapped[str] = mapped_column(ForeignKey("sessions.id"), index=True)
     number: Mapped[int] = mapped_column(Integer)
     title: Mapped[str] = mapped_column(String(300))
+    description: Mapped[str] = mapped_column(Text, default="")
+    criteria: Mapped[list] = mapped_column(JSON, default=list)
     category: Mapped[str] = mapped_column(String(32))
     depends_on: Mapped[list] = mapped_column(JSON, default=list)
     recommended: Mapped[bool] = mapped_column(Boolean, default=False)

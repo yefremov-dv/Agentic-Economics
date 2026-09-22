@@ -1,7 +1,10 @@
+import re
+
 import pytest
 from typer.testing import CliRunner
 
 from agentic_economics.cli import app
+from tests.fakes import TURKEY_PLAN, FakeLLM, analysis
 
 runner = CliRunner()
 
@@ -48,11 +51,68 @@ def test_provider_add_then_agent_disable(run):
     assert "retail-sportline" in run("--admin", "agent", "list", "--all").output
 
 
-def test_chat_stub(run):
-    result = run("chat", "--user", "ivanov", input="/balance\nпривет\n/exit\n")
+def use_llm(monkeypatch, *responses):
+    llm = FakeLLM(*responses)
+    monkeypatch.setattr("agentic_economics.cli.get_llm", lambda settings, model=None: llm)
+    return llm
+
+
+def test_chat_questions_plan_and_commands(run, monkeypatch, seeded):
+    use_llm(monkeypatch, analysis(ready=False, questions=["Город вылета?"], budget=1_000_000),
+            analysis(budget=1_000_000), TURKEY_PLAN)
+    result = run("chat", "--user", "ivanov",
+                 input="/balance\nХочу в Турцию\nИз Москвы\n/plan\n/history\n/bids\n/exit\n")
+    assert result.exit_code == 0, result.output
+    out = result.output
+    assert "1 500 000.00 VRUB" in out
+    assert "Город вылета?" in out
+    assert "План готов." in out
+    assert "Отель Maxx Royal Belek, 6 ночей" in out
+    assert "рекомендовано, выключено" in out
+    assert "этапе 3" in out
+    session_id = re.search(r"Сессия (\S+)\. Опишите задачу", out).group(1)
+    assert len(list((seeded.path("tasks_dir") / session_id).glob("task-*.md"))) == 5
+
+
+def test_chat_resume_session(run, monkeypatch):
+    use_llm(monkeypatch, analysis(), TURKEY_PLAN)
+    out = run("chat", "--user", "ivanov", input="Хочу в Турцию\n/exit\n").output
+    session_id = re.search(r"Сессия (\S+)\. Опишите задачу", out).group(1)
+
+    result = run("chat", "--user", "ivanov", "--session", session_id, input="/exit\n")
     assert result.exit_code == 0
-    assert "1 500 000.00 VRUB" in result.output
-    assert "этапе 2" in result.output
+    assert f"Продолжаем сессию {session_id}" in result.output
+    assert "Хочу в Турцию" in result.output  # история
+    assert "Трансфер аэропорт ↔ отель" in result.output  # план
+
+    assert run("chat", "--user", "petrova", "--session", session_id).exit_code == 1
+    assert "Незавершённые сессии" in run("chat", "--user", "ivanov", input="/exit\n").output
+
+
+def test_chat_cancel(run, monkeypatch):
+    use_llm(monkeypatch, analysis(), TURKEY_PLAN)
+    out = run("chat", "--user", "ivanov", input="Хочу в Турцию\n/cancel\ny\n").output
+    assert "Сессия отменена." in out
+    session_id = re.search(r"Сессия (\S+)\. Опишите задачу", out).group(1)
+    assert "отменена" in run("chat", "--user", "ivanov", "--session", session_id).output
+
+
+def test_chat_requires_llm(run):
+    result = run("chat", "--user", "ivanov")
+    assert result.exit_code == 1
+    assert "GIGACHAT_CREDENTIALS" in result.output
+
+
+def test_outdated_schema_asks_for_reset(run, seeded):
+    import sqlite3
+
+    con = sqlite3.connect(seeded.path("db"))
+    con.execute("ALTER TABLE tasks DROP COLUMN criteria")
+    con.commit()
+    con.close()
+    result = run("--admin", "agent", "list")
+    assert result.exit_code == 1
+    assert "reset-demo" in result.output
 
 
 def test_chat_unknown_user(run):

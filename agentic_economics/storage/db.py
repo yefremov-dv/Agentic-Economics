@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from sqlalchemy import Engine, create_engine, event
+from sqlalchemy import Engine, create_engine, event, inspect
 from sqlalchemy.orm import sessionmaker
 
 from agentic_economics.config import Settings
@@ -24,8 +24,27 @@ def make_engine(settings: Settings) -> Engine:
     return engine
 
 
+class SchemaOutdated(RuntimeError):
+    """База создана старой версией программы — нужен reset-demo."""
+
+
+def check_schema(engine: Engine) -> None:
+    insp = inspect(engine)
+    for table in Base.metadata.sorted_tables:
+        if not insp.has_table(table.name):
+            continue
+        existing = {c["name"] for c in insp.get_columns(table.name)}
+        missing = [c.name for c in table.columns if c.name not in existing]
+        if missing:
+            raise SchemaOutdated(
+                f"в таблице {table.name} нет столбцов {', '.join(missing)}. "
+                "Пересоздайте базу: python -m agentic_economics --admin reset-demo -y"
+            )
+
+
 def make_sessionmaker(settings: Settings) -> sessionmaker:
     engine = make_engine(settings)
+    check_schema(engine)
     Base.metadata.create_all(engine)
     return sessionmaker(engine, expire_on_commit=False)
 

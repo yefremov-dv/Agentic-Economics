@@ -9,7 +9,7 @@
 | Этап | Состояние |
 |---|---|
 | 1. Каркас: конфиг, GigaChat, БД, seed, CLI | готов |
-| 2. Оркестратор: диалог и декомпозиция в `task-N.md` | — |
+| 2. Оркестратор: диалог и декомпозиция в `task-N.md` | готов |
 | 3. Аукцион | — |
 | 4. Экономика: эскроу, комиссия | — |
 | 5. Полный цикл | — |
@@ -31,7 +31,7 @@ python -m agentic_economics check-llm
 
 Если OAuth-эндпоинт `ngw.devices.sberbank.ru:9443` недоступен (например, прокси пропускает только порт 443), получите токен доступа на другой машине и укажите его в `GIGACHAT_ACCESS_TOKEN` — тогда запрос за токеном не делается. Токен живёт 30 минут.
 
-Модель задаётся в `config.yaml` (`llm.model`, по умолчанию `GigaChat-2`). Доступны также `GigaChat-2-Pro`, `GigaChat-2-Max`, `GigaChat-3-Lightning` и другие — список зависит от scope.
+Модель задаётся в `config.yaml` (`llm.model`, по умолчанию `GigaChat-2`). Для оркестратора отдельно — `orchestrator.model` (по умолчанию `GigaChat-2-Max`: на младших моделях декомпозиция заметно хуже). Доступны также `GigaChat-2-Pro`, `GigaChat-2-Max`, `GigaChat-3-Lightning` и другие — список зависит от scope.
 
 ## Запуск
 
@@ -41,6 +41,12 @@ python -m agentic_economics chat --user ivanov       # чат клиента
 ```
 
 Демо-клиенты: `ivanov`, `petrova`, `sidorov` (по 1 500 000 VRUB).
+
+В чате опишите задачу свободным текстом. Оркестратор задаст уточняющие вопросы (не более `orchestrator.max_clarification_rounds` раз, затем достроит план с допущениями), разобьёт задачу на подзадачи и сохранит их в `tasks/<session>/task-N.md`. Рекомендованные подзадачи (например, страховка) создаются выключенными. Новое сообщение после готового плана меняет требования — план строится заново.
+
+Команды чата: `/plan`, `/history`, `/balance`, `/cancel`, `/help`, `/exit`. Продолжить сессию: `chat --user ivanov --session <id>`.
+
+После обновления программы, если схема базы изменилась, CLI попросит пересоздать базу: `reset-demo -y`.
 
 ## Команды администратора
 
@@ -67,7 +73,7 @@ python -m agentic_economics --admin ledger [--owner sky-lines]
 ## Структура
 
 ```
-agentic_economics/   код: cli, config, llm, storage, agents, wallet, seed
+agentic_economics/   код: cli, config, llm, orchestrator, storage, agents, wallet, seed
 agents/              YAML-описания агентов-исполнителей (источник истины)
 data/seed.yaml       провайдеры и клиенты для reset-demo
 config.yaml          настройки (без секретов)
