@@ -1,3 +1,4 @@
+import re
 from datetime import date
 
 import pytest
@@ -307,3 +308,10 @@ def test_single_event_loop_for_all_async_steps(seeded, db):
     orch = planned(seeded, db, llm)
     orch.confirm()
     assert len(llm.loops) == 1
+
+
+def test_verifier_sees_bid_items(seeded, db):
+    llm = FakeLLM(analysis(), TURKEY_PLAN)
+    planned(seeded, db, llm).confirm()
+    retail = next(v for v in llm.verifications if "кроссовки" in v)
+    assert "название модели товара — не размер" in retail and re.search(r"× 1 \(пара\), размер \d+", retail)

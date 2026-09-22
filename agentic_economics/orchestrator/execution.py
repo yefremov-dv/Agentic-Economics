@@ -36,6 +36,9 @@ VERIFY = """\
 
 {task}
 
+Ставка исполнителя (позиции каталога; название модели товара — не размер):
+{items}
+
 Отчёт исполнителя (success={success}):
 {summary}
 {details}
@@ -186,7 +189,7 @@ class Executor:
                 continue
             if reference not in report.summary and reference not in " ".join(report.details):
                 report.summary = f"{report.summary} Номер подтверждения: {reference}."
-            verdict = await self._verify(brief, report)
+            verdict = await self._verify(brief, report, bid.details or {})
             attempts.append(Attempt(agent.id, verdict.ok, verdict.reason, report, reference))
             log.info("%s, %s: попытка %d — %s %s", brief.key, agent.id, len(attempts),
                      "принято" if verdict.ok else "не принято", verdict.reason)
@@ -195,10 +198,13 @@ class Executor:
             feedback = verdict.reason or "результат не соответствует подзадаче"
         return attempts
 
-    async def _verify(self, brief: TaskBrief, report: ExecutionReport) -> Verification:
+    async def _verify(self, brief: TaskBrief, report: ExecutionReport, bid_details: dict) -> Verification:
         if not report.success:
             return Verification(ok=False, reason="исполнитель сообщил, что не смог выполнить подзадачу")
-        prompt = VERIFY.format(task=brief.text(), success=report.success, summary=report.summary,
+        items = "\n".join(f"- {i['title']} × {i['quantity']} ({i.get('unit', '')})"
+                          + (f", размер {i['size']}" if i.get("size") else "")
+                          for i in bid_details.get("items", [])) or "—"
+        prompt = VERIFY.format(task=brief.text(), items=items, success=report.success, summary=report.summary,
                                details="\n".join(f"- {d}" for d in report.details))
         try:
             verdict = await retry_llm(lambda: self.verify_llm.with_structured_output(Verification).ainvoke(prompt),

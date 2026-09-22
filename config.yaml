@@ -21,9 +21,12 @@ orchestrator:
 auction:
   max_candidates: 5
   bid_timeout: 30
-  max_parallel: 4
-  # Модель агентов-исполнителей; пусто — llm.model
-  agent_model:
+  # Одновременных запросов ставок. Max упирается в лимит GigaChat жёстче младших моделей:
+  # при 4 параллельных запросах терялось 3–4 ставки из 11, при 1 — ни одной
+  max_parallel: 1
+  # Модель агентов-исполнителей; пусто — llm.model. На Max в сравнении не было ни одной
+  # ошибочной ставки из 47, на GigaChat-2 — около 10 %, но он втрое быстрее
+  agent_model: GigaChat-2-Max
   weights:
     price: 0.5
     confidence: 0.3
