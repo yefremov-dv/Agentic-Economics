@@ -70,7 +70,7 @@ def test_chat_questions_plan_and_commands(run, monkeypatch, seeded):
     assert "Отель Maxx Royal Belek, 6 ночей" in out
     assert "рекомендовано, выключено" in out
     assert "победитель" in out  # таблица /bids
-    assert "Итого по включённым подзадачам" in out
+    assert "К оплате:" in out and "комиссия платформы" in out
     session_id = re.search(r"Сессия (\S+)\. Опишите задачу", out).group(1)
     assert len(list((seeded.path("tasks_dir") / session_id).glob("task-*.md"))) == 5
 
@@ -148,3 +148,16 @@ def test_balance_shows_escrow(run, monkeypatch, seeded):
     assert "Доступно: 1 400 000.00 VRUB, заблокировано в эскроу: 100 000.00 VRUB" in out
     listing = run("--admin", "wallet", "list").output
     assert "system:escrow" in listing and "сходится" in listing
+
+
+def test_trace_shows_orchestrator_work(seeded, config_file, monkeypatch):
+    import logging
+
+    use_llm(monkeypatch, analysis(), TURKEY_PLAN)
+    result = CliRunner().invoke(app, ["--config", str(config_file), "--trace", "chat", "--user", "ivanov"],
+                                input="Хочу в Турцию\n/exit\n")
+    assert result.exit_code == 0
+    handlers = logging.getLogger().handlers
+    assert any(type(h).__name__ == "RichHandler" for h in handlers)
+    log_text = (seeded.path("logs_dir") / "agentic.log").read_text(encoding="utf-8")
+    assert "Ставка" in log_text and "план из 5 подзадач" in log_text

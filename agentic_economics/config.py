@@ -35,6 +35,8 @@ class OrchestratorConfig(BaseModel):
     model: str | None = None
     # Сколько раз можно переспросить клиента, прежде чем декомпозировать с допущениями
     max_clarification_rounds: int = Field(2, ge=0)
+    # Время на выполнение одной подзадачи агентом (одна попытка), секунды
+    execution_timeout: float = Field(90, gt=0)
 
 
 class AuctionWeights(BaseModel):

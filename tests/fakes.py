@@ -8,7 +8,8 @@ import json
 from langchain_core.messages import AIMessage, SystemMessage, ToolMessage
 from pydantic import BaseModel
 
-from agentic_economics.agents.executor import BidDraft
+from agentic_economics.agents.executor import BidDraft, ExecutionReport
+from agentic_economics.orchestrator.execution import Verification
 
 
 class FakeLLM:
@@ -16,12 +17,17 @@ class FakeLLM:
 
     Агенты-исполнители (bind_tools + BidDraft) по умолчанию ищут по названию подзадачи и ставят на первую
     найденную позицию × 1. Поведение отдельных агентов задаётся в agents: {подстрока системного промпта: правило},
-    правило — dict с ключами query, bid (dict BidDraft), delay (с), error (исключение).
+    правило — dict с ключами query, bid (dict BidDraft), delay (с), error (исключение),
+    execute (dict ExecutionReport или список — по попыткам), execute_error (исключение при выполнении).
+    Проверка результата оркестратором по умолчанию принимает отчёт; verify(текст проверки) -> dict меняет это.
     """
 
-    def __init__(self, *responses, agents: dict | None = None):
+    def __init__(self, *responses, agents: dict | None = None, verify=None):
         self.responses = list(responses)
         self.agents = agents or {}
+        self.verify = verify
+        self.executions: list[list] = []
+        self.verifications: list[str] = []
         self.calls: list[tuple[type[BaseModel], list]] = []
         self.bid_calls: list[list] = []
 
@@ -58,6 +64,11 @@ class _Structured:
         self.llm, self.schema = llm, schema
 
     async def ainvoke(self, messages):
+        if self.schema is Verification:
+            self.llm.verifications.append(messages)
+            return Verification.model_validate(self.llm.verify(messages) if self.llm.verify else {"ok": True})
+        if self.schema is ExecutionReport:
+            return self._execute(messages)
         assert self.schema is BidDraft, self.schema
         self.llm.bid_calls.append(messages)
         rule = self.llm.rule(messages)
@@ -78,6 +89,22 @@ class _Structured:
         size = str(sizes[0]) if sizes[0] is not None else None
         return BidDraft(participate=True, items=[{"item_id": found[0]["id"], "quantity": 1, "size": size}],
                         eta="1 день", confidence=0.8, offer=found[0]["title"])
+
+    def _execute(self, messages):
+        self.llm.executions.append(messages)
+        rule = self.llm.rule(messages)
+        if rule.get("execute_error"):
+            raise rule["execute_error"]
+        plan = rule.get("execute")
+        if isinstance(plan, list):
+            attempt = sum(1 for m in messages if "не принял прошлый отчёт" in str(m.content))
+            plan = plan[min(attempt, len(plan) - 1)]
+        if plan is not None:
+            return ExecutionReport.model_validate(plan)
+        reference = messages[0].content.split("Номер подтверждения: ")[1].split(" ")[0]
+        title = messages[1].content.splitlines()[0]
+        return ExecutionReport(success=True, summary=f"Выполнено: {title}. Номер подтверждения: {reference}",
+                               details=[f"Номер: {reference}"])
 
     def invoke(self, messages):
         self.llm.calls.append((self.schema, messages))

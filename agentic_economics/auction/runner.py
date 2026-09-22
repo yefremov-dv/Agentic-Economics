@@ -6,7 +6,7 @@ import asyncio
 import logging
 from dataclasses import dataclass
 from datetime import date
-from typing import Callable
+from typing import Awaitable, Callable, TypeVar
 
 from langchain_core.language_models.chat_models import BaseChatModel
 from sqlalchemy.orm import Session
@@ -19,6 +19,8 @@ from agentic_economics.orchestrator import taskfile
 from agentic_economics.storage.models import Agent, Bid, Task, utcnow
 
 log = logging.getLogger(__name__)
+
+T = TypeVar("T")
 
 
 @dataclass
@@ -83,6 +85,7 @@ async def _collect(jobs: list[_Job], timeout: float, parallel: int,
                 log.exception("Агент %s: ошибка ставки по %s", job.agent.id, job.brief.key)
                 result = BidResult(job.agent.id, "error", offer=f"ошибка: {type(exc).__name__}")
         received.append((job, result, utcnow()))
+        log.debug("Ставка %s по %s: %s", job.agent.id, job.brief.key, result)
         if on_progress:
             on_progress(f"Аукцион: получено {len(received)} из {len(jobs)} ставок…")
 
@@ -93,19 +96,22 @@ async def _collect(jobs: list[_Job], timeout: float, parallel: int,
 RETRY_DELAYS = (1.0, 2.0, 4.0)
 
 
-async def _bid_with_retry(job: _Job) -> BidResult:
-    """Ставка с повтором при превышении лимита запросов (HTTP 429) и невалидном ответе модели (NFR-2).
-    Всё вместе ограничено таймаутом ставки."""
+async def retry_llm(factory: Callable[[], Awaitable[T]], who: str) -> T:
+    """Повтор вызова LLM при превышении лимита запросов (HTTP 429) и невалидном ответе модели (NFR-2)."""
     for delay in (*RETRY_DELAYS, None):
         try:
-            return await job.agent.bid(job.brief)
+            return await factory()
         except Exception as exc:
             retriable = "RateLimit" in type(exc).__name__ or "429" in str(exc) or isinstance(exc, ValueError)
             if delay is None or not retriable:
                 raise
-            log.info("Агент %s: %s, повтор через %s с", job.agent.id, type(exc).__name__, delay)
+            log.info("%s: %s, повтор через %s с", who, type(exc).__name__, delay)
             await asyncio.sleep(delay)
     raise AssertionError("недостижимо")
+
+
+async def _bid_with_retry(job: _Job) -> BidResult:
+    return await retry_llm(lambda: job.agent.bid(job.brief), f"Агент {job.agent.id}")
 
 
 def _settle(db: Session, settings: Settings, task: Task, results: list[BidResult], stamps: list,

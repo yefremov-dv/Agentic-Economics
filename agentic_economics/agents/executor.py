@@ -8,6 +8,8 @@ from __future__ import annotations
 
 import json
 import logging
+import secrets
+import string
 import time
 from dataclasses import dataclass, field
 from datetime import date
@@ -71,6 +73,37 @@ class BidDraft(BaseModel):
     eta: str | None = Field(None, description="Срок выполнения, например «подтверждение брони за 2 часа»")
     confidence: float | None = Field(None, description="Уверенность от 0 до 1, что предложение соответствует подзадаче")
     offer: str | None = Field(None, description="Что конкретно предлагается, 1–3 предложения, без цены")
+
+
+EXECUTE = """\
+{system_prompt}
+Сегодня {today}. Твоя ставка выиграла аукцион, клиент подтвердил заказ и оплатил его через эскроу.
+Выполни подзадачу. Это демонстрация: бронирования, заказы и полисы фиктивные, но отчёт должен быть правдоподобным
+и опираться только на позиции из твоей ставки.
+Номер подтверждения: {reference} — обязательно укажи его в отчёте."""
+
+
+class ExecutionReport(BaseModel):
+    """Отчёт исполнителя о выполнении подзадачи."""
+
+    success: bool = Field(description="true — подзадача выполнена; false — выполнить не удалось")
+    summary: str = Field(description="Что сделано: номер подтверждения, даты, время, места, параметры — 1–3 предложения")
+    details: list[str] = Field(default_factory=list, description="Ключевые детали результата списком")
+
+
+REFERENCE_FORMATS = {
+    "flights": ("", 6, string.ascii_uppercase),      # PNR авиабронирования
+    "hotels": ("HB-", 8, string.digits),
+    "transfers": ("TR-", 6, string.digits),
+    "retail": ("ORD-", 8, string.digits),
+    "insurance": ("POL-", 10, string.digits),
+}
+
+
+def make_reference(category: str) -> str:
+    """Фиктивный номер брони, заказа или полиса."""
+    prefix, length, alphabet = REFERENCE_FORMATS.get(category, ("REF-", 8, string.digits))
+    return prefix + "".join(secrets.choice(alphabet) for _ in range(length))
 
 
 @dataclass
@@ -137,6 +170,26 @@ class ExecutorAgent:
 
         return StructuredTool.from_function(func=run, name=self.tool_name, description=self.tool_description,
                                             args_schema=SearchArgs)
+
+    # ------------------------------------------------------------ выполнение
+
+    async def execute(self, task: TaskBrief, bid_offer: str, bid_details: dict, reference: str,
+                      feedback: str = "") -> ExecutionReport:
+        """Выполнение подзадачи по выигравшей ставке (FR-18). feedback — замечания оркестратора к прошлой попытке."""
+        system = EXECUTE.format(system_prompt=self.config["system_prompt"].strip(), today=f"{self.today:%d.%m.%Y}",
+                                reference=reference)
+        items = "\n".join(f"- {i['title']} × {i['quantity']}" + (f", размер {i['size']}" if i.get("size") else "")
+                           for i in bid_details.get("items", []))
+        text = f"{task.text()}\n\nТвоя ставка: {bid_offer}\nПозиции:\n{items or '—'}"
+        if feedback:
+            text += f"\n\nОркестратор не принял прошлый отчёт: {feedback}\nИсправь и выполни заново."
+        report = await self.llm.with_structured_output(ExecutionReport).ainvoke(
+            [SystemMessage(system), HumanMessage(text)])
+        if isinstance(report, dict):
+            report = ExecutionReport.model_validate(report)
+        if report is None:
+            raise ValueError("модель не вернула отчёт")
+        return report
 
     # ------------------------------------------------------------ ставка
 

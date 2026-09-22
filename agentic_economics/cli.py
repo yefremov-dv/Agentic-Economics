@@ -86,13 +86,14 @@ def main(
     ctx: typer.Context,
     admin: Annotated[bool, typer.Option("--admin", help="Режим администратора (без пароля, FR-30).")] = False,
     verbose: Annotated[bool, typer.Option("--verbose", "-v", help="Подробные логи в logs/agentic.log.")] = False,
+    trace: Annotated[bool, typer.Option("--trace", help="Показывать в терминале ход работы оркестратора и сырые ставки.")] = False,
     config: Annotated[Optional[Path], typer.Option("--config", help="Путь к config.yaml.")] = None,
 ) -> None:
     try:
         settings = load_settings(config)
     except ValidationError as exc:
         raise fail(f"некорректный config.yaml:\n{exc}")
-    setup_logging(settings, verbose)
+    setup_logging(settings, verbose, trace)
     ctx.obj = AppState(settings=settings, admin=admin)
 
 
@@ -105,16 +106,21 @@ for _sub in (agent_app, provider_app, user_app, wallet_app, auction_app):
 
 CHAT_HELP = """\
 [bold]Команды чата[/]
-  /plan     — план: подзадачи, зависимости, победители аукционов
-  /bids     — все ставки; /bids task-N — ставки по одной подзадаче
-  /history  — история диалога
-  /balance  — баланс кошелька
-  /cancel   — отменить сессию
-  /help     — эта справка
-  /exit     — выход (сессию можно продолжить: chat --session <id>)
-Любой другой текст — сообщение оркестратору. Если план уже готов, сообщение меняет требования,
-и план строится заново.
-[dim]Подтверждение плана и выполнение появятся на этапе 5.[/]"""
+  /plan                    — план: исполнители, альтернативы, суммы
+  /bids [task-N]           — ставки аукциона
+  /confirm                 — подтвердить план: блокировка денег и выполнение
+  /enable | /disable task-N — включить или выключить рекомендованную подзадачу
+  /replace task-N <агент>  — заменить исполнителя на другого участника аукциона
+  /remove task-N           — убрать подзадачу из плана
+  /rate task-N <1–5> [отзыв] — оценить исполнителя выполненной подзадачи
+  /result                  — итоговый отчёт
+  /history  /balance  /help
+  /cancel                  — отменить сессию (до подтверждения деньги не списываются)
+  /exit                    — выход (сессию можно продолжить: chat --session <id>)
+Любой другой текст — сообщение оркестратору. До подтверждения оно меняет требования,
+и план с аукционом строятся заново."""
+
+CONFIRM_WORDS = {"подтвердить", "подтвердить всё", "подтвердить все", "подтверждаю", "/confirm"}
 
 
 @app.command()
@@ -183,10 +189,16 @@ def chat(
             elif text == "/bids" or text.startswith("/bids "):
                 print_bids(orch, text.removeprefix("/bids").strip())
             elif text == "/cancel":
-                if typer.confirm("Отменить сессию?", default=False):
+                if orch.session.status in ("approved", "in_progress", "done"):
+                    console.print("План уже подтверждён — отменять нечего.")
+                elif typer.confirm("Отменить сессию?", default=False):
                     orch.cancel()
-                    console.print("Сессия отменена.")
+                    console.print("Сессия отменена. Деньги не списывались.")
                     break
+            elif text.lower() in CONFIRM_WORDS:
+                confirm_and_execute(orch)
+            elif text.split()[0] in PLAN_COMMANDS:
+                plan_command(orch, text)
             elif text.startswith("/"):
                 console.print(f"Неизвестная команда {text}. /help — список команд.")
             else:
@@ -206,6 +218,95 @@ def print_client_balance(db: Session, wallet: Wallet) -> None:
     console.print(line)
 
 
+PLAN_COMMANDS = ("/enable", "/disable", "/replace", "/remove", "/rate", "/result")
+
+
+def plan_command(orch: Orchestrator, text: str) -> None:
+    command, *args = text.split(maxsplit=3)
+    try:
+        if command == "/result":
+            path = orch.tasks_dir / orch.session.id / "result.md"
+            if not path.exists():
+                console.print("Отчёта ещё нет — он появится после выполнения плана.")
+            else:
+                console.print(path.read_text(encoding="utf-8"))
+            return
+        if not args:
+            raise OrchestratorError(f"укажите подзадачу, например: {command} task-1")
+        if command in ("/enable", "/disable"):
+            console.print(orch.set_enabled(args[0], command == "/enable"))
+        elif command == "/remove":
+            console.print(orch.remove(args[0]))
+        elif command == "/replace":
+            if len(args) < 2:
+                raise OrchestratorError("формат: /replace task-N <id агента>")
+            console.print(orch.replace(args[0], args[1]))
+        elif command == "/rate":
+            if len(args) < 2 or not args[1].isdigit():
+                raise OrchestratorError("формат: /rate task-N <1–5> [отзыв]")
+            agent = orch.rate(args[0], int(args[1]), args[2] if len(args) > 2 else None)
+            console.print(f"Спасибо! Рейтинг {agent.id}: {agent.rating:.1f} (оценок: {agent.ratings_count}).")
+            return
+    except OrchestratorError as exc:
+        console.print(f"[yellow]{exc}[/]")
+        return
+    print_plan(orch)
+
+
+def confirm_and_execute(orch: Orchestrator) -> None:
+    try:
+        with console.status("Блокируем деньги и выполняем план…") as status:
+            execution = orch.confirm(lambda message: status.update(message))
+    except OrchestratorError as exc:
+        console.print(f"[yellow]Подтвердить не получилось: {exc}[/]")
+        return
+    print_execution(orch, execution)
+    ask_ratings(orch, execution)
+
+
+def print_execution(orch: Orchestrator, execution) -> None:
+    table = Table("#", "Подзадача", "Исполнитель", "Статус", "Номер", "Результат", title="Выполнение")
+    for o in execution.outcomes:
+        status = {"done": "[green]выполнена[/]", "failed": "[red]не выполнена[/]",
+                  "cancelled": "[yellow]отменена[/]"}[o.status]
+        switched = len({a.agent_id for a in o.attempts}) > 1
+        agent = (o.agent_id or "—") + (" [dim](второе место)[/]" if switched and o.status == "done" else "")
+        table.add_row(task_key(o.task.number), o.task.title, agent, status, o.reference or "—",
+                      o.summary or o.note)
+    console.print(table)
+    wallet = find_wallet(orch.db, "client", orch.session.user_id)
+    from agentic_economics.orchestrator.report import totals
+
+    t = totals(orch.db, orch.tasks())
+    line = f"Оплачено: [bold]{fmt(t.paid)}[/] (в т.ч. комиссия платформы {fmt(t.fee)})"
+    if t.returned:
+        line += f", возвращено: {fmt(t.returned)}"
+    console.print(line + f". Баланс: {fmt(balance(orch.db, wallet))}")
+    console.print(f"Отчёт: {execution.report_path}")
+
+
+def ask_ratings(orch: Orchestrator, execution) -> None:
+    """FR-32: оценка исполнителя по каждой выполненной подзадаче, можно пропустить."""
+    done = [o for o in execution.outcomes if o.status == "done"]
+    if not done:
+        return
+    console.print("[bold]Оцените исполнителей[/] от 1 до 5 (Enter — пропустить):")
+    for o in done:
+        while True:
+            try:
+                answer = console.input(f"  {task_key(o.task.number)} — {o.agent_id}: ").strip()
+            except (EOFError, KeyboardInterrupt):
+                console.print()
+                return
+            if not answer:
+                break
+            if answer.isdigit() and 1 <= int(answer) <= 5:
+                agent = orch.rate(task_key(o.task.number), int(answer))
+                console.print(f"  [dim]рейтинг {agent.id}: {agent.rating:.1f} ({agent.ratings_count})[/]")
+                break
+            console.print("  Введите число от 1 до 5 или нажмите Enter.")
+
+
 def print_reply(orch: Orchestrator, reply: Reply) -> None:
     if reply.kind == "questions":
         console.print(f"[bold magenta]оркестратор>[/] {reply.text}")
@@ -221,28 +322,51 @@ def print_reply(orch: Orchestrator, reply: Reply) -> None:
 
 
 def print_plan(orch: Orchestrator) -> None:
-    tasks = orch.tasks()
-    table = Table("#", "Подзадача", "Категория", "Зависит от", "Победитель", "Цена", "Ставок", "Статус", title="План")
-    total = 0
-    for t in tasks:
-        title = t.title + ("\n[dim]рекомендовано, выключено[/]" if t.recommended and not t.enabled else "")
+    if orch.session.status == "awaiting_approval":
+        print_approval(orch)
+        return
+    table = Table("#", "Подзадача", "Категория", "Зависит от", "Исполнитель", "Цена", "Статус", title="План")
+    for t in orch.tasks():
         winner = orch.winner(t)
-        bids = [b for b in orch.bids(t) if b.status in ("winner", "lost")]
-        if winner and t.enabled:
-            total += winner.price
-        table.add_row(task_key(t.number), title, t.category,
-                      ", ".join(task_key(n) for n in t.depends_on) or "—",
+        table.add_row(task_key(t.number), t.title, t.category, ", ".join(task_key(n) for n in t.depends_on) or "—",
                       winner.agent_id if winner else "—", fmt(winner.price) if winner else "—",
-                      str(len(bids)) if t.status != "new" else "—", t.status)
+                      STATUS.get(t.status, t.status))
     console.print(table)
-    if total:
-        line = f"Итого по включённым подзадачам: [bold]{fmt(total)}[/]"
-        if orch.session.budget:
-            rest = orch.session.budget - total
-            line += f", бюджет {fmt(orch.session.budget)}, " + (
-                f"остаток {fmt(rest)}" if rest >= 0 else f"[red]превышение {fmt(-rest)}[/]")
-        console.print(line)
     console.print(f"[dim]Файлы: {orch.tasks_dir / orch.session.id}/[/]")
+
+
+def print_approval(orch: Orchestrator) -> None:
+    """План перед подтверждением (FR-15): исполнитель и альтернативы, суммы, бюджет, баланс."""
+    a = orch.approval()
+    table = Table("#", "Подзадача", "Зависит от", "Исполнитель", "Цена", "Альтернативы", title="План на подтверждение")
+    for line in a.lines:
+        t, w = line.task, line.winner
+        title = t.title
+        if t.status == "cancelled":
+            title = f"[strike dim]{t.title}[/] [dim]убрана[/]"
+        elif t.recommended:
+            title += "\n[dim]рекомендовано, " + ("включено[/]" if t.enabled else "выключено: /enable " + task_key(t.number) + "[/]")
+        alternatives = "\n".join(f"{b.agent_id} — {fmt(b.price)}" for b in line.alternatives) or "—"
+        rating = ""
+        if w:
+            agent = orch.db.get(Agent, w.agent_id)
+            rating = f"\n[dim]★ {agent.rating:.1f} ({agent.ratings_count}), {w.eta or 'срок не указан'}[/]"
+        table.add_row(task_key(t.number), title, ", ".join(task_key(n) for n in t.depends_on) or "—",
+                      (w.agent_id + rating) if w else "[red]нет ставок[/]", fmt(w.price) if w else "—", alternatives)
+    console.print(table)
+    console.print(f"К оплате: [bold]{fmt(a.total)}[/] (в т.ч. комиссия платформы {fmt(a.fee)})")
+    if a.budget is not None:
+        left = a.budget_left
+        console.print(f"Бюджет: {fmt(a.budget)}, " + (f"остаток {fmt(left)}" if left >= 0 else f"[red]превышение {fmt(-left)}[/]"))
+    after = a.balance - a.total
+    console.print(f"Баланс: {fmt(a.balance)}, после блокировки: " + (fmt(after) if after >= 0 else f"[red]не хватает {fmt(-after)}[/]"))
+    console.print("[dim]/confirm — подтвердить, /replace task-N <агент>, /remove task-N, /enable task-N, "
+                  "/cancel — отменить. Любой текст — изменить требования.[/]")
+    console.print(f"[dim]Файлы: {orch.tasks_dir / orch.session.id}/[/]")
+
+
+STATUS = {"new": "новая", "bidding": "аукцион", "awaiting_approval": "ждёт подтверждения", "approved": "подтверждена",
+          "in_progress": "выполняется", "done": "выполнена", "failed": "не выполнена", "cancelled": "отменена"}
 
 
 BID_STATUS = {"winner": "[green]победитель[/]", "lost": "проиграл", "declined": "[dim]отказ[/]",

@@ -119,13 +119,13 @@ def settle(db: Session, task: Task, fee_rate: float, currency: str = "VRUB") -> 
 
 
 def refund(db: Session, task: Task, kind: str = "refund", note: str | None = None,
-           currency: str = "VRUB") -> Transaction | None:
-    """Возвращает клиенту всё, что лежит в эскроу по подзадаче. Если возвращать нечего — None."""
+           currency: str = "VRUB", keep: int = 0) -> Transaction | None:
+    """Возвращает клиенту всё, что лежит в эскроу по подзадаче, кроме keep. Если возвращать нечего — None."""
     if kind not in ("refund", "release"):
         raise ValueError("kind: refund или release")
     try:
         _lock(db, *ESCROW_OWNER, currency)
-        amount = held(db, task.id)
+        amount = held(db, task.id) - max(keep, 0)
         tx = None
         if amount > 0:
             client_id = db.get(ChatSession, task.session_id).user_id

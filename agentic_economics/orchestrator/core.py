@@ -27,8 +27,11 @@ log = logging.getLogger(__name__)
 
 S = TypeVar("S", bound=BaseModel)
 
-# Роли сообщений: user — клиент, assistant — вопросы оркестратора, plan — предложенный план
-LLM_ROLES = {"user": "user", "assistant": "assistant", "plan": "assistant"}
+# Роли сообщений: user — клиент, assistant — вопросы оркестратора, plan — предложенный план, report — итоги
+LLM_ROLES = {"user": "user", "assistant": "assistant", "plan": "assistant", "report": "assistant"}
+
+# Статусы сессии: active → planned → awaiting_approval → approved → in_progress → done; или cancelled
+CLOSED = ("approved", "in_progress", "done", "cancelled")
 
 
 class OrchestratorError(RuntimeError):
@@ -37,6 +40,34 @@ class OrchestratorError(RuntimeError):
 
 class LLMFailure(RuntimeError):
     pass
+
+
+@dataclass
+class ApprovalLine:
+    task: Task
+    winner: Bid | None
+    alternatives: list[Bid]
+
+
+@dataclass
+class Approval:
+    """То, что клиент видит перед подтверждением (FR-15)."""
+
+    lines: list[ApprovalLine]
+    total: int          # к блокировке: сумма победителей по включённым подзадачам
+    fee: int            # из неё комиссия платформы (удерживается из выплаты провайдеру)
+    budget: int | None
+    balance: int
+
+    @property
+    def budget_left(self) -> int | None:
+        return None if self.budget is None else self.budget - self.total
+
+
+@dataclass
+class Execution:
+    outcomes: list  # list[TaskOutcome]
+    report_path: object
 
 
 @dataclass
@@ -119,6 +150,9 @@ class Orchestrator:
         """Обрабатывает сообщение клиента: задаёт вопросы или строит (перестраивает) план."""
         if self.session.status == "cancelled":
             return Reply("error", "Сессия отменена. Начните новую: перезапустите chat без --session.")
+        if self.session.status in CLOSED:
+            return Reply("error", "План уже подтверждён, требования менять нельзя. "
+                                  "Для новой задачи начните новую сессию: перезапустите chat без --session.")
         self._save("user", text)
 
         categories = self._categories()
@@ -191,6 +225,119 @@ class Orchestrator:
         self.db.commit()
         text = "План обновлён, аукцион проведён." if replanned else "План готов, аукцион проведён."
         return Reply("plan", text, tasks=tasks, warnings=warnings)
+
+    # ------------------------------------------------------------ подтверждение (FR-15 – FR-17)
+
+    def approval(self) -> Approval:
+        from agentic_economics.wallet.escrow import fee_of
+        from agentic_economics.wallet.ledger import balance, get_wallet
+
+        lines, total, fee = [], 0, 0
+        for task in self.tasks():
+            winner = self.winner(task)
+            others = sorted((b for b in self.bids(task) if b.status == "lost"), key=lambda b: (-(b.score or 0), b.id))
+            lines.append(ApprovalLine(task, winner, others[:2]))
+            if winner and task.enabled and task.status != "cancelled":
+                total += winner.price
+                fee += fee_of(winner.price, self.settings.wallet.platform_fee)
+        wallet = get_wallet(self.db, "client", self.session.user_id, self.settings.wallet.currency)
+        return Approval(lines, total, fee, self.session.budget, balance(self.db, wallet))
+
+    def set_enabled(self, key: str, enabled: bool) -> str:
+        task = self._editable(key)
+        if not task.recommended:
+            raise OrchestratorError(f"{key} не рекомендованная; чтобы отказаться от неё, используйте /remove {key}")
+        task.enabled = enabled
+        self._touch(task)
+        return f"{taskfile.task_key(task.number)} {'включена' if enabled else 'выключена'}."
+
+    def remove(self, key: str) -> str:
+        task = self._editable(key)
+        task.enabled = False
+        task.status = "cancelled"
+        self._touch(task)
+        dependents = [taskfile.task_key(t.number) for t in self.tasks()
+                      if task.number in t.depends_on and t.status != "cancelled"]
+        note = f" От неё зависят {', '.join(dependents)} — они будут выполнены без неё." if dependents else ""
+        return f"{taskfile.task_key(task.number)} убрана из плана.{note}"
+
+    def replace(self, key: str, agent_id: str) -> str:
+        task = self._editable(key)
+        bid = next((b for b in self.bids(task) if b.agent_id == agent_id), None)
+        if bid is None or bid.status not in ("winner", "lost"):
+            valid = ", ".join(b.agent_id for b in self.bids(task) if b.status == "lost") or "нет"
+            raise OrchestratorError(f"у {agent_id} нет действующей ставки по {key}. Альтернативы: {valid}")
+        current = self.winner(task)
+        if current is not None and current.id != bid.id:
+            current.status = "lost"
+        bid.status = "winner"
+        task.winner_bid_id = bid.id
+        self._touch(task)
+        return f"{taskfile.task_key(task.number)}: исполнитель {agent_id}, {fmt(bid.price)}."
+
+    def confirm(self, on_progress: Callable[[str], None] | None = None) -> Execution:
+        """Подтверждение: блокировка денег (эскроу), выполнение, выплаты, result.md (FR-17 – FR-22, FR-31)."""
+        from agentic_economics.orchestrator import report
+        from agentic_economics.orchestrator.execution import Executor
+        from agentic_economics.wallet.escrow import hold
+        from agentic_economics.wallet.ledger import InsufficientFunds
+
+        if self.session.status != "awaiting_approval":
+            raise OrchestratorError("подтверждать нечего: сначала нужен план с проведённым аукционом")
+        tasks = [t for t in self.tasks() if t.status == "awaiting_approval"]
+        chosen = [t for t in tasks if t.enabled]
+        if not chosen:
+            raise OrchestratorError("в плане не осталось ни одной включённой подзадачи")
+        orphan = [taskfile.task_key(t.number) for t in chosen if t.winner_bid_id is None]
+        if orphan:
+            raise OrchestratorError(f"нет исполнителя: {', '.join(orphan)}. Уберите их (/remove) или измените требования")
+        try:
+            hold(self.db, self.session.user_id, [(t, self.winner(t).price) for t in chosen],
+                 self.settings.wallet.currency)
+        except InsufficientFunds as exc:
+            raise OrchestratorError(str(exc)) from exc
+        for task in tasks:
+            task.status = "approved" if task.enabled else "cancelled"
+            taskfile.write(task, self.tasks_dir, self.winner(task))
+        self.session.status = "approved"
+        self.db.commit()
+        log.info("Сессия %s: план подтверждён, %d подзадач", self.session.id, len(chosen))
+
+        outcomes = Executor(self.settings, self.db, self.session, self.agent_llm, self.llm, self.today,
+                            on_progress or self.on_progress).run()
+        path = report.write(self.db, self.settings, self.session)
+        done = sum(1 for o in outcomes if o.status == "done")
+        self._save("report", f"Выполнено подзадач: {done} из {len(outcomes)}. Отчёт: {path}")
+        self.db.commit()
+        return Execution(outcomes, path)
+
+    def rate(self, key: str, score: int, comment: str | None = None):
+        from agentic_economics.agents.rating import RatingError, rate
+
+        task = self.find(key)
+        try:
+            return rate(self.db, task, self.session.user_id, score, comment)
+        except RatingError as exc:
+            raise OrchestratorError(str(exc)) from exc
+
+    def find(self, key: str) -> Task:
+        number = key.strip().lower().removeprefix("task-")
+        task = next((t for t in self.tasks() if str(t.number) == number), None)
+        if task is None:
+            raise OrchestratorError(f"подзадача {key} не найдена")
+        return task
+
+    def _editable(self, key: str) -> Task:
+        if self.session.status != "awaiting_approval":
+            raise OrchestratorError("план можно менять только до подтверждения")
+        task = self.find(key)
+        if task.status == "cancelled":
+            raise OrchestratorError(f"{key} уже убрана из плана")
+        return task
+
+    def _touch(self, task: Task) -> None:
+        self.db.commit()
+        taskfile.write(task, self.tasks_dir, self.winner(task))
 
     # ------------------------------------------------------------ служебное
 

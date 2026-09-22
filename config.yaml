@@ -16,6 +16,7 @@ orchestrator:
   # Декомпозиция заметно точнее на старших моделях; пусто — llm.model
   model: GigaChat-2-Max
   max_clarification_rounds: 2
+  execution_timeout: 90
 
 auction:
   max_candidates: 5
