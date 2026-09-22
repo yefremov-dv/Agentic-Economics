@@ -299,3 +299,11 @@ def test_rating_survives_reload_and_affects_auction(seeded, db):
                             seeded.auction.weights)
     assert [b.score for b in bids] == pytest.approx(expected)
     assert db.get(Agent, agent.id).rating == 1.0
+
+
+def test_single_event_loop_for_all_async_steps(seeded, db):
+    # Клиент GigaChat привязан к циклу событий: аукцион и все волны выполнения должны идти в одном
+    llm = FakeLLM(analysis(), TURKEY_PLAN)
+    orch = planned(seeded, db, llm)
+    orch.confirm()
+    assert len(llm.loops) == 1

@@ -11,6 +11,7 @@ from typing import Awaitable, Callable, TypeVar
 from langchain_core.language_models.chat_models import BaseChatModel
 from sqlalchemy.orm import Session
 
+from agentic_economics import aio
 from agentic_economics.agents.executor import BidResult, ExecutorAgent, TaskBrief
 from agentic_economics.auction.candidates import select_candidates
 from agentic_economics.auction.scoring import Offer, pick_winner, score_offers
@@ -58,7 +59,7 @@ def run_auctions(settings: Settings, db: Session, tasks: list[Task], agent_llm: 
 
     if on_progress:
         on_progress(f"Аукцион: {len(jobs)} ставок по {len(tasks)} подзадачам…")
-    received = asyncio.run(_collect(jobs, cfg.bid_timeout, cfg.max_parallel, on_progress))
+    received = aio.run(_collect(jobs, cfg.bid_timeout, cfg.max_parallel, on_progress))
 
     outcomes = []
     for task in tasks:

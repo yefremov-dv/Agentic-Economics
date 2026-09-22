@@ -27,6 +27,7 @@ class FakeLLM:
         self.agents = agents or {}
         self.verify = verify
         self.executions: list[list] = []
+        self.loops: set[int] = set()  # event loop'ы, в которых вызывалась модель
         self.verifications: list[str] = []
         self.calls: list[tuple[type[BaseModel], list]] = []
         self.bid_calls: list[list] = []
@@ -64,6 +65,7 @@ class _Structured:
         self.llm, self.schema = llm, schema
 
     async def ainvoke(self, messages):
+        self.llm.loops.add(id(asyncio.get_running_loop()))
         if self.schema is Verification:
             self.llm.verifications.append(messages)
             return Verification.model_validate(self.llm.verify(messages) if self.llm.verify else {"ok": True})

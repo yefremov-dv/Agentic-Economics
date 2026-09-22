@@ -19,6 +19,7 @@ from pydantic import BaseModel, Field
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from agentic_economics import aio
 from agentic_economics.agents.executor import ExecutionReport, ExecutorAgent, TaskBrief, make_reference
 from agentic_economics.auction.runner import retry_llm
 from agentic_economics.config import Settings
@@ -131,7 +132,7 @@ class Executor:
         self.db.commit()
         briefs = {t.id: self._brief(t, done) for t in tasks}
         jobs = [(t, self._winner(t)) for t in tasks]
-        first = asyncio.run(self._attempt_all([(t, bid, briefs[t.id]) for t, bid in jobs]))
+        first = aio.run(self._attempt_all([(t, bid, briefs[t.id]) for t, bid in jobs]))
 
         outcomes: dict[int, TaskOutcome] = {}
         second_round = []
@@ -145,7 +146,7 @@ class Executor:
                 outcomes[task.id] = self._fail(task, bid, attempts, "второго места с подходящей ценой нет")
 
         if second_round:
-            more = asyncio.run(self._attempt_all([(t, bid, briefs[t.id]) for t, bid, _ in second_round]))
+            more = aio.run(self._attempt_all([(t, bid, briefs[t.id]) for t, bid, _ in second_round]))
             for (task, bid, earlier), attempts in zip(second_round, more):
                 history = earlier + attempts
                 outcomes[task.id] = (self._finish(task, bid, history) if attempts[-1].ok
