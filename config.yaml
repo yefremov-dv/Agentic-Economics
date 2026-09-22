@@ -1,0 +1,26 @@
+# Пути задаются относительно корня проекта (текущего каталога)
+paths:
+  db: var/agentic.db
+  tasks_dir: tasks
+  agents_dir: agents
+  seed_file: data/seed.yaml
+  logs_dir: logs
+
+llm:
+  model: GigaChat
+  temperature: 0.3
+  timeout: 60
+  max_retries: 3
+
+auction:
+  max_candidates: 5
+  bid_timeout: 30
+  weights:
+    price: 0.5
+    confidence: 0.3
+    rating: 0.2
+
+wallet:
+  currency: VRUB
+  platform_fee: 0.05
+  default_client_balance: 1500000

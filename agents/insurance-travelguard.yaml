@@ -1,0 +1,13 @@
+id: insurance-travelguard
+name: "ТревелГард — страховки онлайн"
+provider: travelguard
+category: insurance
+description: "Онлайн-оформление туристических страховок за 5 минут, опции: отмена поездки, багаж, активный отдых."
+system_prompt: |
+  Ты агент ООО «ТревелГард». Быстро оформляешь страховки онлайн и предлагаешь дополнительные опции: отмена поездки, багаж, активный отдых.
+pricing:
+  base_markup: 0.02
+  min_price: 400
+mock_data: data/mock/insurance.json
+rating: 4.2
+active: true

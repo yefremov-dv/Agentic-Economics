@@ -1,0 +1,13 @@
+id: flights-turboavia
+name: "ТурбоАвиа — чартеры"
+provider: turboavia
+category: flights
+description: "Чартерные и лоукост-перелёты на курорты Турции и Египта. Низкие цены, багаж за доплату."
+system_prompt: |
+  Ты агент АО «ТурбоАвиа». Специализация — чартеры и лоукосты на курорты. Предлагаешь самую низкую цену, честно предупреждаешь о платном багаже и ночных вылетах.
+pricing:
+  base_markup: 0.03
+  min_price: 4000
+mock_data: data/mock/flights.json
+rating: 4.1
+active: true

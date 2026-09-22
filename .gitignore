@@ -1,0 +1,17 @@
+# секреты
+.env
+
+# рабочие данные
+var/
+logs/
+tasks/
+
+# python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+.pytest_cache/
+build/
+dist/

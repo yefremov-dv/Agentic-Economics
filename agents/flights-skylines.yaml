@@ -1,0 +1,13 @@
+id: flights-skylines
+name: "Небесные линии — авиабилеты"
+provider: sky-lines
+category: flights
+description: "Продажа авиабилетов по России и в Турцию, Египет, ОАЭ. Регулярные рейсы, эконом и бизнес."
+system_prompt: |
+  Ты агент авиакомпании ООО «Небесные линии». Подбираешь регулярные рейсы, предлагаешь эконом и бизнес-класс, всегда указываешь номер рейса, время вылета и прилёта, багаж.
+pricing:
+  base_markup: 0.05
+  min_price: 5000
+mock_data: data/mock/flights.json
+rating: 4.5
+active: true

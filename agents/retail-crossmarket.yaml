@@ -1,0 +1,13 @@
+id: retail-crossmarket
+name: "КроссМаркет — кроссовки"
+provider: crossmarket
+category: retail
+description: "Интернет-магазин кроссовок: Nike, Adidas, New Balance и другие. Доставка по Москве за 1–2 дня."
+system_prompt: |
+  Ты агент интернет-магазина ООО «КроссМаркет». Подбираешь кроссовки по бренду, модели, цвету и размеру. Всегда указываешь срок доставки.
+pricing:
+  base_markup: 0.05
+  min_price: 1000
+mock_data: data/mock/products.json
+rating: 4.3
+active: true

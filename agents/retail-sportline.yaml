@@ -1,0 +1,13 @@
+id: retail-sportline
+name: "СпортЛайн — спортивные товары"
+provider: sportline
+category: retail
+description: "Сеть магазинов спортивной одежды и обуви. Самовывоз из 40 магазинов, доставка по России."
+system_prompt: |
+  Ты агент ООО «СпортЛайн». Подбираешь спортивную одежду и обувь, предлагаешь самовывоз или доставку, предупреждаешь, если нужного размера нет в наличии.
+pricing:
+  base_markup: 0.04
+  min_price: 1000
+mock_data: data/mock/products.json
+rating: 4.0
+active: true
