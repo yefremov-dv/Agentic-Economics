@@ -1,0 +1,40 @@
+# Стартовые данные демо. Все компании и ИНН вымышлены.
+# Команда `reset-demo` пересоздаёт базу из этого файла и из agents/*.yaml.
+
+providers:
+  - id: sky-lines
+    name: ООО «Небесные линии»
+    inn: "7700000001"
+  - id: turboavia
+    name: АО «ТурбоАвиа»
+    inn: "7700000002"
+  - id: sunrise-travel
+    name: ООО «Санрайз Тревел»
+    inn: "7700000003"
+  - id: bosphorus
+    name: ООО «Босфор Хоспиталити»
+    inn: "7700000004"
+  - id: kara-transfer
+    name: ИП Кара А. М.
+    inn: "770000000005"
+  - id: crossmarket
+    name: ООО «КроссМаркет»
+    inn: "7700000006"
+  - id: sportline
+    name: ООО «СпортЛайн»
+    inn: "7700000007"
+  - id: shield
+    name: АО «Надёжный Щит»
+    inn: "7700000008"
+  - id: travelguard
+    name: ООО «ТревелГард»
+    inn: "7700000009"
+
+# balance не указан — используется wallet.default_client_balance из config.yaml
+clients:
+  - id: ivanov
+    name: Иван Иванов
+  - id: petrova
+    name: Мария Петрова
+  - id: sidorov
+    name: Пётр Сидоров

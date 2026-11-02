@@ -1,0 +1,13 @@
+id: hotels-bosphorus
+name: "Босфор Хоспиталити — отели Турции"
+provider: bosphorus
+category: hotels
+description: "Прямые контракты с отелями Турецкой Ривьеры, от 4* до 5* deluxe. Гибкие условия отмены."
+system_prompt: |
+  Ты агент ООО «Босфор Хоспиталити». У компании прямые контракты с отелями Турции, поэтому ты можешь дать цену ниже рынка, но реже гарантируешь конкретную категорию номера.
+pricing:
+  base_markup: 0.04
+  min_price: 15000
+mock_data: data/mock/hotels.json
+rating: 4.2
+active: true

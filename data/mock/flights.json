@@ -1,0 +1,433 @@
+{
+  "_comment": "Демо-данные. Все компании, рейсы, отели, товары и цены вымышлены.",
+  "items": [
+    {
+      "id": "sl-101-y",
+      "title": "Небесные линии SL-101 Москва → Анталья (Анталия), эконом",
+      "airline": "Небесные линии",
+      "flight_no": "SL-101",
+      "from_city": "Москва",
+      "from_airport": "SVO",
+      "to_city": "Анталья (Анталия)",
+      "to_airport": "AYT",
+      "departure": "09:10",
+      "arrival": "13:25",
+      "duration": "4 ч 15 мин",
+      "schedule": "ежедневно",
+      "cabin": "эконом",
+      "baggage": "23 кг",
+      "price": 24500,
+      "unit": "билет на 1 пассажира в одну сторону",
+      "sellers": [
+        "sky-lines",
+        "sunrise-travel"
+      ]
+    },
+    {
+      "id": "sl-101-c",
+      "title": "Небесные линии SL-101 Москва → Анталья (Анталия), бизнес",
+      "airline": "Небесные линии",
+      "flight_no": "SL-101",
+      "from_city": "Москва",
+      "from_airport": "SVO",
+      "to_city": "Анталья (Анталия)",
+      "to_airport": "AYT",
+      "departure": "09:10",
+      "arrival": "13:25",
+      "duration": "4 ч 15 мин",
+      "schedule": "ежедневно",
+      "cabin": "бизнес",
+      "baggage": "2×32 кг",
+      "price": 78000,
+      "unit": "билет на 1 пассажира в одну сторону",
+      "sellers": [
+        "sky-lines",
+        "sunrise-travel"
+      ]
+    },
+    {
+      "id": "sl-102-y",
+      "title": "Небесные линии SL-102 Анталья (Анталия) → Москва, эконом",
+      "airline": "Небесные линии",
+      "flight_no": "SL-102",
+      "from_city": "Анталья (Анталия)",
+      "from_airport": "AYT",
+      "to_city": "Москва",
+      "to_airport": "SVO",
+      "departure": "14:30",
+      "arrival": "18:40",
+      "duration": "4 ч 10 мин",
+      "schedule": "ежедневно",
+      "cabin": "эконом",
+      "baggage": "23 кг",
+      "price": 23800,
+      "unit": "билет на 1 пассажира в одну сторону",
+      "sellers": [
+        "sky-lines",
+        "sunrise-travel"
+      ]
+    },
+    {
+      "id": "sl-102-c",
+      "title": "Небесные линии SL-102 Анталья (Анталия) → Москва, бизнес",
+      "airline": "Небесные линии",
+      "flight_no": "SL-102",
+      "from_city": "Анталья (Анталия)",
+      "from_airport": "AYT",
+      "to_city": "Москва",
+      "to_airport": "SVO",
+      "departure": "14:30",
+      "arrival": "18:40",
+      "duration": "4 ч 10 мин",
+      "schedule": "ежедневно",
+      "cabin": "бизнес",
+      "baggage": "2×32 кг",
+      "price": 76500,
+      "unit": "билет на 1 пассажира в одну сторону",
+      "sellers": [
+        "sky-lines",
+        "sunrise-travel"
+      ]
+    },
+    {
+      "id": "ta-7401",
+      "title": "ТурбоАвиа TA-7401 Москва → Анталья (Анталия), эконом",
+      "airline": "ТурбоАвиа",
+      "flight_no": "TA-7401",
+      "from_city": "Москва",
+      "from_airport": "VKO",
+      "to_city": "Анталья (Анталия)",
+      "to_airport": "AYT",
+      "departure": "02:40",
+      "arrival": "06:55",
+      "duration": "4 ч 15 мин",
+      "schedule": "ежедневно",
+      "cabin": "эконом",
+      "baggage": "только ручная кладь, багаж 20 кг +3 500 ₽",
+      "price": 16900,
+      "unit": "билет на 1 пассажира в одну сторону",
+      "sellers": [
+        "turboavia",
+        "sunrise-travel"
+      ]
+    },
+    {
+      "id": "ta-7402",
+      "title": "ТурбоАвиа TA-7402 Анталья (Анталия) → Москва, эконом",
+      "airline": "ТурбоАвиа",
+      "flight_no": "TA-7402",
+      "from_city": "Анталья (Анталия)",
+      "from_airport": "AYT",
+      "to_city": "Москва",
+      "to_airport": "VKO",
+      "departure": "08:05",
+      "arrival": "12:20",
+      "duration": "4 ч 15 мин",
+      "schedule": "ежедневно",
+      "cabin": "эконом",
+      "baggage": "только ручная кладь, багаж 20 кг +3 500 ₽",
+      "price": 16400,
+      "unit": "билет на 1 пассажира в одну сторону",
+      "sellers": [
+        "turboavia",
+        "sunrise-travel"
+      ]
+    },
+    {
+      "id": "sr-c881",
+      "title": "Санрайз Чартер SR-881 Москва → Анталья (Анталия), эконом",
+      "airline": "Санрайз Чартер",
+      "flight_no": "SR-881",
+      "from_city": "Москва",
+      "from_airport": "DME",
+      "to_city": "Анталья (Анталия)",
+      "to_airport": "AYT",
+      "departure": "11:50",
+      "arrival": "16:00",
+      "duration": "4 ч 10 мин",
+      "schedule": "ежедневно",
+      "cabin": "эконом",
+      "baggage": "20 кг",
+      "price": 21000,
+      "unit": "билет на 1 пассажира в одну сторону",
+      "sellers": [
+        "sunrise-travel"
+      ]
+    },
+    {
+      "id": "sr-c882",
+      "title": "Санрайз Чартер SR-882 Анталья (Анталия) → Москва, эконом",
+      "airline": "Санрайз Чартер",
+      "flight_no": "SR-882",
+      "from_city": "Анталья (Анталия)",
+      "from_airport": "AYT",
+      "to_city": "Москва",
+      "to_airport": "DME",
+      "departure": "17:30",
+      "arrival": "21:40",
+      "duration": "4 ч 10 мин",
+      "schedule": "ежедневно",
+      "cabin": "эконом",
+      "baggage": "20 кг",
+      "price": 20500,
+      "unit": "билет на 1 пассажира в одну сторону",
+      "sellers": [
+        "sunrise-travel"
+      ]
+    },
+    {
+      "id": "sl-211-y",
+      "title": "Небесные линии SL-211 Санкт-Петербург → Анталья (Анталия), эконом",
+      "airline": "Небесные линии",
+      "flight_no": "SL-211",
+      "from_city": "Санкт-Петербург",
+      "from_airport": "LED",
+      "to_city": "Анталья (Анталия)",
+      "to_airport": "AYT",
+      "departure": "07:35",
+      "arrival": "12:30",
+      "duration": "4 ч 55 мин",
+      "schedule": "ежедневно",
+      "cabin": "эконом",
+      "baggage": "23 кг",
+      "price": 27900,
+      "unit": "билет на 1 пассажира в одну сторону",
+      "sellers": [
+        "sky-lines"
+      ]
+    },
+    {
+      "id": "sl-212-y",
+      "title": "Небесные линии SL-212 Анталья (Анталия) → Санкт-Петербург, эконом",
+      "airline": "Небесные линии",
+      "flight_no": "SL-212",
+      "from_city": "Анталья (Анталия)",
+      "from_airport": "AYT",
+      "to_city": "Санкт-Петербург",
+      "to_airport": "LED",
+      "departure": "13:40",
+      "arrival": "18:25",
+      "duration": "4 ч 45 мин",
+      "schedule": "ежедневно",
+      "cabin": "эконом",
+      "baggage": "23 кг",
+      "price": 27200,
+      "unit": "билет на 1 пассажира в одну сторону",
+      "sellers": [
+        "sky-lines"
+      ]
+    },
+    {
+      "id": "ta-7511",
+      "title": "ТурбоАвиа TA-7511 Санкт-Петербург → Анталья (Анталия), эконом",
+      "airline": "ТурбоАвиа",
+      "flight_no": "TA-7511",
+      "from_city": "Санкт-Петербург",
+      "from_airport": "LED",
+      "to_city": "Анталья (Анталия)",
+      "to_airport": "AYT",
+      "departure": "03:15",
+      "arrival": "08:05",
+      "duration": "4 ч 50 мин",
+      "schedule": "ежедневно",
+      "cabin": "эконом",
+      "baggage": "только ручная кладь, багаж 20 кг +3 500 ₽",
+      "price": 18900,
+      "unit": "билет на 1 пассажира в одну сторону",
+      "sellers": [
+        "turboavia"
+      ]
+    },
+    {
+      "id": "ta-7512",
+      "title": "ТурбоАвиа TA-7512 Анталья (Анталия) → Санкт-Петербург, эконом",
+      "airline": "ТурбоАвиа",
+      "flight_no": "TA-7512",
+      "from_city": "Анталья (Анталия)",
+      "from_airport": "AYT",
+      "to_city": "Санкт-Петербург",
+      "to_airport": "LED",
+      "departure": "09:20",
+      "arrival": "14:05",
+      "duration": "4 ч 45 мин",
+      "schedule": "ежедневно",
+      "cabin": "эконом",
+      "baggage": "только ручная кладь, багаж 20 кг +3 500 ₽",
+      "price": 18400,
+      "unit": "билет на 1 пассажира в одну сторону",
+      "sellers": [
+        "turboavia"
+      ]
+    },
+    {
+      "id": "sl-301-y",
+      "title": "Небесные линии SL-301 Москва → Стамбул, эконом",
+      "airline": "Небесные линии",
+      "flight_no": "SL-301",
+      "from_city": "Москва",
+      "from_airport": "SVO",
+      "to_city": "Стамбул",
+      "to_airport": "IST",
+      "departure": "10:20",
+      "arrival": "13:55",
+      "duration": "3 ч 35 мин",
+      "schedule": "ежедневно",
+      "cabin": "эконом",
+      "baggage": "23 кг",
+      "price": 22400,
+      "unit": "билет на 1 пассажира в одну сторону",
+      "sellers": [
+        "sky-lines"
+      ]
+    },
+    {
+      "id": "sl-302-y",
+      "title": "Небесные линии SL-302 Стамбул → Москва, эконом",
+      "airline": "Небесные линии",
+      "flight_no": "SL-302",
+      "from_city": "Стамбул",
+      "from_airport": "IST",
+      "to_city": "Москва",
+      "to_airport": "SVO",
+      "departure": "15:10",
+      "arrival": "18:40",
+      "duration": "3 ч 30 мин",
+      "schedule": "ежедневно",
+      "cabin": "эконом",
+      "baggage": "23 кг",
+      "price": 21900,
+      "unit": "билет на 1 пассажира в одну сторону",
+      "sellers": [
+        "sky-lines"
+      ]
+    },
+    {
+      "id": "ta-7601",
+      "title": "ТурбоАвиа TA-7601 Москва → Хургада, эконом",
+      "airline": "ТурбоАвиа",
+      "flight_no": "TA-7601",
+      "from_city": "Москва",
+      "from_airport": "VKO",
+      "to_city": "Хургада",
+      "to_airport": "HRG",
+      "departure": "01:30",
+      "arrival": "06:30",
+      "duration": "5 ч",
+      "schedule": "ежедневно",
+      "cabin": "эконом",
+      "baggage": "только ручная кладь, багаж 20 кг +4 000 ₽",
+      "price": 19800,
+      "unit": "билет на 1 пассажира в одну сторону",
+      "sellers": [
+        "turboavia"
+      ]
+    },
+    {
+      "id": "ta-7602",
+      "title": "ТурбоАвиа TA-7602 Хургада → Москва, эконом",
+      "airline": "ТурбоАвиа",
+      "flight_no": "TA-7602",
+      "from_city": "Хургада",
+      "from_airport": "HRG",
+      "to_city": "Москва",
+      "to_airport": "VKO",
+      "departure": "08:00",
+      "arrival": "13:10",
+      "duration": "5 ч 10 мин",
+      "schedule": "ежедневно",
+      "cabin": "эконом",
+      "baggage": "только ручная кладь, багаж 20 кг +4 000 ₽",
+      "price": 19300,
+      "unit": "билет на 1 пассажира в одну сторону",
+      "sellers": [
+        "turboavia"
+      ]
+    },
+    {
+      "id": "sl-411-y",
+      "title": "Небесные линии SL-411 Москва → Шарм-эш-Шейх, эконом",
+      "airline": "Небесные линии",
+      "flight_no": "SL-411",
+      "from_city": "Москва",
+      "from_airport": "SVO",
+      "to_city": "Шарм-эш-Шейх",
+      "to_airport": "SSH",
+      "departure": "08:45",
+      "arrival": "13:45",
+      "duration": "5 ч",
+      "schedule": "ежедневно",
+      "cabin": "эконом",
+      "baggage": "23 кг",
+      "price": 28600,
+      "unit": "билет на 1 пассажира в одну сторону",
+      "sellers": [
+        "sky-lines",
+        "sunrise-travel"
+      ]
+    },
+    {
+      "id": "sl-412-y",
+      "title": "Небесные линии SL-412 Шарм-эш-Шейх → Москва, эконом",
+      "airline": "Небесные линии",
+      "flight_no": "SL-412",
+      "from_city": "Шарм-эш-Шейх",
+      "from_airport": "SSH",
+      "to_city": "Москва",
+      "to_airport": "SVO",
+      "departure": "15:00",
+      "arrival": "20:10",
+      "duration": "5 ч 10 мин",
+      "schedule": "ежедневно",
+      "cabin": "эконом",
+      "baggage": "23 кг",
+      "price": 28100,
+      "unit": "билет на 1 пассажира в одну сторону",
+      "sellers": [
+        "sky-lines",
+        "sunrise-travel"
+      ]
+    },
+    {
+      "id": "sl-501-y",
+      "title": "Небесные линии SL-501 Москва → Дубай, эконом",
+      "airline": "Небесные линии",
+      "flight_no": "SL-501",
+      "from_city": "Москва",
+      "from_airport": "SVO",
+      "to_city": "Дубай",
+      "to_airport": "DXB",
+      "departure": "12:15",
+      "arrival": "19:05",
+      "duration": "5 ч 50 мин",
+      "schedule": "ежедневно",
+      "cabin": "эконом",
+      "baggage": "23 кг",
+      "price": 34900,
+      "unit": "билет на 1 пассажира в одну сторону",
+      "sellers": [
+        "sky-lines"
+      ]
+    },
+    {
+      "id": "sl-502-y",
+      "title": "Небесные линии SL-502 Дубай → Москва, эконом",
+      "airline": "Небесные линии",
+      "flight_no": "SL-502",
+      "from_city": "Дубай",
+      "from_airport": "DXB",
+      "to_city": "Москва",
+      "to_airport": "SVO",
+      "departure": "21:00",
+      "arrival": "01:55",
+      "duration": "5 ч 55 мин",
+      "schedule": "ежедневно",
+      "cabin": "эконом",
+      "baggage": "23 кг",
+      "price": 33800,
+      "unit": "билет на 1 пассажира в одну сторону",
+      "sellers": [
+        "sky-lines"
+      ]
+    }
+  ]
+}

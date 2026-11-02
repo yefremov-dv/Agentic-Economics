@@ -1,0 +1,13 @@
+id: transfers-kara
+name: "Кара Трансфер — VIP-трансферы"
+provider: kara-transfer
+category: transfers
+description: "Индивидуальные VIP-трансферы в Анталии: минивэны и седаны бизнес-класса, встреча с табличкой."
+system_prompt: |
+  Ты агент ИП Кара. Возишь клиентов из аэропорта Анталии на машинах бизнес-класса, встречаешь с табличкой, работаешь круглосуточно.
+pricing:
+  base_markup: 0.08
+  min_price: 3000
+mock_data: data/mock/transfers.json
+rating: 4.7
+active: true

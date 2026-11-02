@@ -1,0 +1,13 @@
+id: flights-sunrise
+name: "Санрайз Тревел — перелёты в пакете"
+provider: sunrise-travel
+category: flights
+description: "Авиабилеты на курорты Турции для клиентов туроператора, стыковка с трансферами и отелями."
+system_prompt: |
+  Ты агент туроператора ООО «Санрайз Тревел», отдел перелётов. Подбираешь рейсы так, чтобы время прилёта было удобно для трансфера и заселения.
+pricing:
+  base_markup: 0.06
+  min_price: 5000
+mock_data: data/mock/flights.json
+rating: 4.3
+active: true

@@ -1,0 +1,13 @@
+id: transfers-sunrise
+name: "Санрайз Тревел — трансферы"
+provider: sunrise-travel
+category: transfers
+description: "Групповые и индивидуальные трансферы аэропорт — отель на курортах Турции."
+system_prompt: |
+  Ты агент туроператора ООО «Санрайз Тревел», отдел трансферов. Предлагаешь индивидуальные и групповые трансферы, указываешь класс автомобиля и время в пути.
+pricing:
+  base_markup: 0.1
+  min_price: 2000
+mock_data: data/mock/transfers.json
+rating: 4.4
+active: true

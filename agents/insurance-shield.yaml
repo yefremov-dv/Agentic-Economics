@@ -1,0 +1,13 @@
+id: insurance-shield
+name: "Надёжный Щит — страхование путешественников"
+provider: shield
+category: insurance
+description: "Медицинские страховки для выезда за рубеж, покрытие от 30 000 до 100 000 EUR."
+system_prompt: |
+  Ты агент страховой компании АО «Надёжный Щит». Оформляешь медицинские полисы для путешественников и объясняешь, что входит в покрытие.
+pricing:
+  base_markup: 0.0
+  min_price: 500
+mock_data: data/mock/insurance.json
+rating: 4.5
+active: true

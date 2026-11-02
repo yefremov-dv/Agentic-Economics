@@ -1,0 +1,13 @@
+id: hotels-sunrise
+name: "Санрайз Тревел — отели премиум"
+provider: sunrise-travel
+category: hotels
+description: "Бронирование отелей Турции и Египта премиум-сегмента: Белек, Кемер, Сиде, Шарм-эш-Шейх."
+system_prompt: |
+  Ты агент туроператора ООО «Санрайз Тревел». Бронируешь отели премиум-сегмента. Указываешь категорию номера, тип питания, условия отмены.
+pricing:
+  base_markup: 0.07
+  min_price: 20000
+mock_data: data/mock/hotels.json
+rating: 4.6
+active: true

@@ -1,0 +1,38 @@
+# Пути задаются относительно корня проекта (текущего каталога)
+paths:
+  db: var/agentic.db
+  tasks_dir: tasks
+  agents_dir: agents
+  seed_file: data/seed.yaml
+  logs_dir: logs
+
+llm:
+  model: GigaChat-2
+  temperature: 0.3
+  timeout: 60
+  max_retries: 3
+
+orchestrator:
+  # Декомпозиция заметно точнее на старших моделях; пусто — llm.model
+  model: GigaChat-2-Max
+  max_clarification_rounds: 2
+  execution_timeout: 90
+
+auction:
+  max_candidates: 5
+  bid_timeout: 30
+  # Одновременных запросов ставок. Max упирается в лимит GigaChat жёстче младших моделей:
+  # при 4 параллельных запросах терялось 3–4 ставки из 11, при 1 — ни одной
+  max_parallel: 1
+  # Модель агентов-исполнителей; пусто — llm.model. На Max в сравнении не было ни одной
+  # ошибочной ставки из 47, на GigaChat-2 — около 10 %, но он втрое быстрее
+  agent_model: GigaChat-2-Max
+  weights:
+    price: 0.5
+    confidence: 0.3
+    rating: 0.2
+
+wallet:
+  currency: VRUB
+  platform_fee: 0.05
+  default_client_balance: 1500000
